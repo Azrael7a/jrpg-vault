@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import Link from "next/link";
 import DeleteCollectionItemButton from "./DeleteCollectionItemButton";
+import UpdateCollectionStatusSelect from "./UpdateCollectionStatusSelect";
 
 const statusLabels: Record<string, string> = {
   owned: "Possédé",
@@ -81,7 +82,10 @@ export default async function CollectionPage() {
             <p>Plateforme : {item.platforms?.name}</p>
             <p>Format : {formatLabels[item.format] ?? item.format}</p>
             <p>Région : {item.region}</p>
-            <p>Statut : {statusLabels[item.status] ?? item.status}</p>
+            <UpdateCollectionStatusSelect
+              itemId={item.id}
+              currentStatus={item.status}
+             />
 
             <DeleteCollectionItemButton itemId={item.id} />
           </div>
