@@ -1,6 +1,14 @@
 import Link from "next/link";
+import { createClient } from "@/utils/supabase/server";
+import LogoutButton from "@/components/logout-button";
 
-export default function Navbar() {
+export default async function Navbar() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <header className="border-b">
       <nav className="mx-auto flex max-w-5xl items-center justify-between p-4">
@@ -8,7 +16,7 @@ export default function Navbar() {
           JRPG Vault
         </Link>
 
-        <div className="flex gap-4 text-sm">
+        <div className="flex items-center gap-4 text-sm">
           <Link href="/games" className="hover:underline">
             Catalogue
           </Link>
@@ -24,6 +32,14 @@ export default function Navbar() {
           <Link href="/news" className="hover:underline">
             Actualités
           </Link>
+
+          {user ? (
+            <LogoutButton />
+          ) : (
+            <Link href="/auth/login" className="rounded border px-3 py-1 hover:bg-gray-100">
+              Connexion
+            </Link>
+          )}
         </div>
       </nav>
     </header>
