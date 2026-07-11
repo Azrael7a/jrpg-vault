@@ -2,67 +2,450 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
-  }
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-  }
+/*
+  JRPG Vault — thème sombre premium
+  Fichier conseillé : app/globals.css ou src/app/globals.css
+
+  Objectif :
+  - fond bleu nuit / noir
+  - cartes sombres
+  - accent violet
+  - rendu plus proche d'une base de données JRPG moderne
+*/
+
+:root {
+  --background: #070a12;
+  --background-soft: #0b1020;
+  --foreground: #f8fafc;
+
+  --card: #0f172a;
+  --card-soft: #111827;
+  --card-hover: #172033;
+  --card-foreground: #f8fafc;
+
+  --border: #1e293b;
+  --border-soft: rgba(148, 163, 184, 0.18);
+
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+
+  --primary: #8b5cf6;
+  --primary-hover: #7c3aed;
+  --primary-foreground: #ffffff;
+
+  --secondary: #22d3ee;
+  --secondary-foreground: #06202a;
+
+  --accent: #a855f7;
+  --accent-foreground: #ffffff;
+
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+
+  --radius: 1rem;
 }
 
-@layer base {
-  * {
-    @apply border-border;
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top left, rgba(139, 92, 246, 0.18), transparent 34rem),
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.10), transparent 30rem),
+    var(--background);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(139, 92, 246, 0.16), transparent 28rem),
+    linear-gradient(180deg, #070a12 0%, #0b1020 45%, #070a12 100%);
+  color: var(--foreground);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+::selection {
+  background: rgba(139, 92, 246, 0.45);
+  color: white;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #c4b5fd;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+/* Header / navigation */
+header,
+nav {
+  background: rgba(7, 10, 18, 0.78);
+  border-color: var(--border-soft) !important;
+  backdrop-filter: blur(16px);
+}
+
+header a,
+nav a {
+  color: #e2e8f0;
+}
+
+header a:hover,
+nav a:hover {
+  color: #c4b5fd;
+}
+
+/* Titres */
+h1,
+h2,
+h3,
+h4 {
+  color: var(--foreground);
+  letter-spacing: -0.03em;
+}
+
+h1 {
+  font-weight: 800;
+}
+
+h2,
+h3 {
+  font-weight: 750;
+}
+
+p {
+  color: #cbd5e1;
+}
+
+/* Champs de formulaire */
+input,
+textarea,
+select {
+  background: rgba(15, 23, 42, 0.92);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #64748b;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: rgba(139, 92, 246, 0.8);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.22);
+}
+
+/* Boutons génériques */
+button {
+  border-radius: 0.75rem;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+/* Classes utilitaires custom réutilisables */
+.page-shell {
+  width: min(1180px, calc(100% - 2rem));
+  margin-inline: auto;
+}
+
+.jrpg-card {
+  background:
+    linear-gradient(180deg, rgba(17, 24, 39, 0.98), rgba(15, 23, 42, 0.98));
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.22);
+}
+
+.jrpg-card:hover {
+  border-color: rgba(139, 92, 246, 0.42);
+  background:
+    linear-gradient(180deg, rgba(23, 32, 51, 0.98), rgba(15, 23, 42, 0.98));
+}
+
+.jrpg-hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(139, 92, 246, 0.34), transparent 22rem),
+    radial-gradient(circle at 85% 22%, rgba(34, 211, 238, 0.18), transparent 24rem),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(7, 10, 18, 0.98));
+  border: 1px solid var(--border-soft);
+  border-radius: 1.5rem;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.28);
+}
+
+.jrpg-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(7, 10, 18, 0.92), rgba(7, 10, 18, 0.42)),
+    radial-gradient(circle at 70% 45%, rgba(139, 92, 246, 0.18), transparent 22rem);
+  pointer-events: none;
+}
+
+.jrpg-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.jrpg-title-gradient {
+  background: linear-gradient(90deg, #ffffff 0%, #c4b5fd 42%, #8b5cf6 70%, #22d3ee 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.jrpg-button-primary {
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  color: white;
+  border: 1px solid rgba(196, 181, 253, 0.35);
+  box-shadow: 0 12px 34px rgba(124, 58, 237, 0.32);
+}
+
+.jrpg-button-primary:hover {
+  background: linear-gradient(135deg, #9f7aea, #7c3aed);
+  box-shadow: 0 16px 40px rgba(124, 58, 237, 0.42);
+}
+
+.jrpg-button-secondary {
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  border: 1px solid var(--border);
+}
+
+.jrpg-button-secondary:hover {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: rgba(139, 92, 246, 0.5);
+  color: white;
+}
+
+.jrpg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid rgba(139, 92, 246, 0.36);
+  background: rgba(139, 92, 246, 0.14);
+  color: #c4b5fd;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.status-termine,
+.status-terminé {
+  color: #86efac;
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.status-en-cours {
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.status-a-faire,
+.status-à-faire {
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.14);
+  border-color: rgba(139, 92, 246, 0.35);
+}
+
+.status-wishlist {
+  color: #f0abfc;
+  background: rgba(168, 85, 247, 0.14);
+  border-color: rgba(168, 85, 247, 0.35);
+}
+
+.status-abandonne,
+.status-abandonné {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+/*
+  Overrides rapides pour transformer une UI Tailwind claire en sombre.
+  Utile pour ta V1 actuelle si les composants utilisent encore bg-white/text-black/border-gray-200.
+  Tu pourras supprimer ces overrides plus tard quand chaque composant aura ses vraies classes sombres.
+*/
+
+.bg-white {
+  background-color: rgba(15, 23, 42, 0.94) !important;
+}
+
+.bg-gray-50,
+.bg-slate-50,
+.bg-zinc-50,
+.bg-neutral-50 {
+  background-color: #070a12 !important;
+}
+
+.bg-gray-100,
+.bg-slate-100,
+.bg-zinc-100,
+.bg-neutral-100 {
+  background-color: #0f172a !important;
+}
+
+.text-black,
+.text-gray-900,
+.text-slate-900,
+.text-zinc-900,
+.text-neutral-900 {
+  color: #f8fafc !important;
+}
+
+.text-gray-800,
+.text-slate-800,
+.text-zinc-800,
+.text-neutral-800 {
+  color: #e2e8f0 !important;
+}
+
+.text-gray-700,
+.text-slate-700,
+.text-zinc-700,
+.text-neutral-700 {
+  color: #cbd5e1 !important;
+}
+
+.text-gray-600,
+.text-slate-600,
+.text-zinc-600,
+.text-neutral-600,
+.text-muted-foreground {
+  color: #94a3b8 !important;
+}
+
+.text-gray-500,
+.text-slate-500,
+.text-zinc-500,
+.text-neutral-500 {
+  color: #64748b !important;
+}
+
+.border,
+.border-gray-100,
+.border-gray-200,
+.border-slate-100,
+.border-slate-200,
+.border-zinc-100,
+.border-zinc-200,
+.border-neutral-100,
+.border-neutral-200 {
+  border-color: var(--border-soft) !important;
+}
+
+.shadow,
+.shadow-sm,
+.shadow-md,
+.shadow-lg {
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.22) !important;
+}
+
+/* Boutons Tailwind courants */
+.bg-black {
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover)) !important;
+  color: white !important;
+}
+
+.hover\:bg-gray-900:hover,
+.hover\:bg-black:hover {
+  background: #7c3aed !important;
+}
+
+/* Boutons blancs/outline */
+button.border,
+a.border {
+  background: rgba(15, 23, 42, 0.75);
+  color: #e2e8f0;
+}
+
+button.border:hover,
+a.border:hover {
+  background: rgba(30, 41, 59, 0.92);
+  border-color: rgba(139, 92, 246, 0.5) !important;
+}
+
+/* Cartes génériques fréquentes */
+.rounded-lg,
+.rounded-xl,
+.rounded-2xl {
+  border-color: var(--border-soft);
+}
+
+/* Tables éventuelles */
+table {
+  color: var(--foreground);
+}
+
+thead {
+  background: rgba(15, 23, 42, 0.9);
+}
+
+tbody tr {
+  border-color: var(--border-soft);
+}
+
+tbody tr:hover {
+  background: rgba(139, 92, 246, 0.08);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #070a12;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .page-shell {
+    width: min(100% - 1rem, 1180px);
   }
-  body {
-    @apply bg-background text-foreground;
+
+  h1 {
+    font-size: clamp(2rem, 12vw, 3rem);
   }
 }
