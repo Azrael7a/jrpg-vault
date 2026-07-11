@@ -1,6 +1,41 @@
 import { createClient } from "@/utils/supabase/server";
 import Link from "next/link";
 
+type GameRelation =
+  | {
+      title: string;
+      slug: string;
+    }
+  | {
+      title: string;
+      slug: string;
+    }[]
+  | null;
+
+type PlatformRelation =
+  | {
+      name: string;
+    }
+  | {
+      name: string;
+    }[]
+  | null;
+
+type RawRelease = {
+  id: number;
+  release_date: string | null;
+  games: GameRelation;
+  platforms: PlatformRelation;
+};
+
+type RawNewsItem = {
+  id: number;
+  title: string;
+  slug: string;
+  summary: string;
+  published_at: string;
+};
+
 export default async function HomePage() {
   const supabase = await createClient();
 
@@ -12,15 +47,19 @@ export default async function HomePage() {
     .from("games")
     .select("*", { count: "exact", head: true });
 
-  const { count: collectionCount } = user
-    ? await supabase
-        .from("user_collections")
-        .select("*", { count: "exact", head: true })
-    : { count: 0 };
+  let collectionCount = 0;
+
+  if (user) {
+    const { count } = await supabase
+      .from("user_collections")
+      .select("*", { count: "exact", head: true });
+
+    collectionCount = count ?? 0;
+  }
 
   const today = new Date().toISOString().slice(0, 10);
 
-  const { data: releases } = await supabase
+  const { data: releasesData } = await supabase
     .from("game_releases")
     .select(`
       id,
@@ -37,11 +76,14 @@ export default async function HomePage() {
     .order("release_date", { ascending: true })
     .limit(3);
 
-  const { data: news } = await supabase
+  const { data: newsData } = await supabase
     .from("news")
     .select("id, title, slug, summary, published_at")
     .order("published_at", { ascending: false })
     .limit(3);
+
+  const releases = (releasesData ?? []) as unknown as RawRelease[];
+  const news = (newsData ?? []) as unknown as RawNewsItem[];
 
   return (
     <main className="mx-auto max-w-5xl p-8">
@@ -49,7 +91,8 @@ export default async function HomePage() {
         <h1 className="text-4xl font-bold">JRPG Vault</h1>
 
         <p className="mt-4 text-lg text-gray-600">
-          Gère ta collection JRPG, suis ton backlog et surveille les prochaines sorties.
+          Gère ta collection JRPG, suis ton backlog et surveille les prochaines
+          sorties.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-4">
@@ -79,7 +122,7 @@ export default async function HomePage() {
 
         <div className="rounded-xl border p-4">
           <p className="text-sm text-gray-500">Jeux dans ta collection</p>
-          <p className="mt-2 text-3xl font-bold">{collectionCount ?? 0}</p>
+          <p className="mt-2 text-3xl font-bold">{collectionCount}</p>
         </div>
       </section>
 
@@ -93,24 +136,38 @@ export default async function HomePage() {
           </div>
 
           <div className="mt-4 grid gap-3">
-            {releases?.length === 0 && (
+            {releases.length === 0 && (
               <div className="rounded-xl border p-4 text-gray-600">
                 Aucune sortie à venir.
               </div>
             )}
 
-            {releases?.map((release) => (
-              <Link
-                key={release.id}
-                href={`/games/${release.games?.slug}`}
-                className="rounded-xl border p-4 hover:bg-gray-50"
-              >
-                <h3 className="font-semibold">{release.games?.title}</h3>
-                <p className="text-sm text-gray-600">
-                  {release.release_date} — {release.platforms?.name}
-                </p>
-              </Link>
-            ))}
+            {releases.map((release) => {
+              const game = Array.isArray(release.games)
+                ? release.games[0]
+                : release.games;
+
+              const platform = Array.isArray(release.platforms)
+                ? release.platforms[0]
+                : release.platforms;
+
+              return (
+                <Link
+                  key={release.id}
+                  href={game?.slug ? `/games/${game.slug}` : "/games"}
+                  className="rounded-xl border p-4 hover:bg-gray-50"
+                >
+                  <h3 className="font-semibold">
+                    {game?.title ?? "Jeu inconnu"}
+                  </h3>
+
+                  <p className="text-sm text-gray-600">
+                    {release.release_date ?? "Date inconnue"} —{" "}
+                    {platform?.name ?? "Plateforme inconnue"}
+                  </p>
+                </Link>
+              );
+            })}
           </div>
         </div>
 
@@ -123,13 +180,13 @@ export default async function HomePage() {
           </div>
 
           <div className="mt-4 grid gap-3">
-            {news?.length === 0 && (
+            {news.length === 0 && (
               <div className="rounded-xl border p-4 text-gray-600">
                 Aucune actualité pour le moment.
               </div>
             )}
 
-            {news?.map((item) => (
+            {news.map((item) => (
               <Link
                 key={item.id}
                 href={`/news/${item.slug}`}

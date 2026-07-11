@@ -1,6 +1,28 @@
 import { createClient } from "@/utils/supabase/server";
 import Link from "next/link";
 
+type RelatedGame =
+  | {
+      title: string;
+      slug: string;
+    }
+  | {
+      title: string;
+      slug: string;
+    }[]
+  | null;
+
+type RawNews = {
+  id: number;
+  title: string;
+  slug: string;
+  summary: string;
+  content: string | null;
+  source_url: string | null;
+  published_at: string;
+  related_game: RelatedGame;
+};
+
 export default async function NewsDetailPage({
   params,
 }: {
@@ -9,7 +31,7 @@ export default async function NewsDetailPage({
   const { slug } = await params;
   const supabase = await createClient();
 
-  const { data: news, error } = await supabase
+  const { data, error } = await supabase
     .from("news")
     .select(`
       id,
@@ -27,13 +49,18 @@ export default async function NewsDetailPage({
     .eq("slug", slug)
     .single();
 
-  if (error || !news) {
+  if (error || !data) {
     return (
       <main className="mx-auto max-w-5xl p-8">
         <p>Actualité introuvable.</p>
       </main>
     );
   }
+
+  const news = data as unknown as RawNews;
+  const relatedGame = Array.isArray(news.related_game)
+    ? news.related_game[0]
+    : news.related_game;
 
   return (
     <main className="mx-auto max-w-3xl p-8">
@@ -48,14 +75,11 @@ export default async function NewsDetailPage({
           Publié le : {new Date(news.published_at).toLocaleDateString("fr-FR")}
         </p>
 
-        {news.related_game && (
+        {relatedGame && (
           <p className="mt-2 text-sm text-gray-600">
             Jeu lié :{" "}
-            <Link
-              href={`/games/${news.related_game.slug}`}
-              className="underline"
-            >
-              {news.related_game.title}
+            <Link href={`/games/${relatedGame.slug}`} className="underline">
+              {relatedGame.title}
             </Link>
           </p>
         )}

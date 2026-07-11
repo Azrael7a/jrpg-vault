@@ -1,0 +1,24 @@
+
+> build
+> next build
+
+▲ Next.js 16.2.10 (Turbopack)
+- Environments: .env.local
+- Cache Components enabled
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 5.2s
+  Running TypeScript ...
+Failed to type check.
+
+./app/collection/page.tsx:77:49
+Type error: Property 'slug' does not exist on type '{ title: any; slug: any; }[]'.
+
+  [90m75 |[0m           <div key={item.id} className=[32m"rounded-xl border p-4"[0m>
+  [90m76 |[0m             <h2 className=[32m"text-xl font-semibold"[0m>
+[31m[1m>[0m [90m77 |[0m               <[33mLink[0m href={[32m`/games/[0m${item.games?.slug[32m}`[0m}>
+  [90m   |[0m                                                 [31m[1m^[0m
+  [90m78 |[0m                 {item.games?.title}
+  [90m79 |[0m               </[33mLink[0m>
+  [90m80 |[0m             </h2>
+Next.js build worker exited with code: 1 and signal: null

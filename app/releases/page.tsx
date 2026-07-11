@@ -8,12 +8,44 @@ const statusLabels: Record<string, string> = {
   released: "Sorti",
 };
 
+type GameRelation =
+  | {
+      title: string;
+      slug: string;
+    }
+  | {
+      title: string;
+      slug: string;
+    }[]
+  | null;
+
+type PlatformRelation =
+  | {
+      name: string;
+    }
+  | {
+      name: string;
+    }[]
+  | null;
+
+type RawRelease = {
+  id: number;
+  release_date: string | null;
+  region: string | null;
+  physical: boolean | null;
+  digital: boolean | null;
+  status: string | null;
+  edition_name: string | null;
+  games: GameRelation;
+  platforms: PlatformRelation;
+};
+
 export default async function ReleasesPage() {
   const supabase = await createClient();
 
   const today = new Date().toISOString().slice(0, 10);
 
-  const { data: releases, error } = await supabase
+  const { data, error } = await supabase
     .from("game_releases")
     .select(`
       id,
@@ -43,6 +75,8 @@ export default async function ReleasesPage() {
     );
   }
 
+  const releases = (data ?? []) as unknown as RawRelease[];
+
   return (
     <main className="mx-auto max-w-5xl p-8">
       <h1 className="text-3xl font-bold">Prochaines sorties JRPG</h1>
@@ -52,29 +86,48 @@ export default async function ReleasesPage() {
       </p>
 
       <div className="mt-6 grid gap-4">
-        {releases?.length === 0 && (
+        {releases.length === 0 && (
           <div className="rounded-xl border p-4">
             Aucune sortie à venir pour le moment.
           </div>
         )}
 
-        {releases?.map((release) => (
-          <div key={release.id} className="rounded-xl border p-4">
-            <h2 className="text-xl font-semibold">
-              <Link href={`/games/${release.games?.slug}`}>
-                {release.games?.title}
-              </Link>
-            </h2>
+        {releases.map((release) => {
+          const game = Array.isArray(release.games)
+            ? release.games[0]
+            : release.games;
 
-            <p>Date : {release.release_date}</p>
-            <p>Plateforme : {release.platforms?.name}</p>
-            <p>Région : {release.region}</p>
-            <p>Édition : {release.edition_name ?? "Non précisée"}</p>
-            <p>Physique : {release.physical ? "Oui" : "Non / inconnu"}</p>
-            <p>Numérique : {release.digital ? "Oui" : "Non / inconnu"}</p>
-            <p>Statut : {statusLabels[release.status] ?? release.status}</p>
-          </div>
-        ))}
+          const platform = Array.isArray(release.platforms)
+            ? release.platforms[0]
+            : release.platforms;
+
+          return (
+            <div key={release.id} className="rounded-xl border p-4">
+              <h2 className="text-xl font-semibold">
+                {game?.slug ? (
+                  <Link href={`/games/${game.slug}`}>
+                    {game.title}
+                  </Link>
+                ) : (
+                  "Jeu inconnu"
+                )}
+              </h2>
+
+              <p>Date : {release.release_date ?? "Non précisée"}</p>
+              <p>Plateforme : {platform?.name ?? "Non précisée"}</p>
+              <p>Région : {release.region ?? "Non précisée"}</p>
+              <p>Édition : {release.edition_name ?? "Non précisée"}</p>
+              <p>Physique : {release.physical ? "Oui" : "Non / inconnu"}</p>
+              <p>Numérique : {release.digital ? "Oui" : "Non / inconnu"}</p>
+              <p>
+                Statut :{" "}
+                {release.status
+                  ? statusLabels[release.status] ?? release.status
+                  : "Non précisé"}
+              </p>
+            </div>
+          );
+        })}
       </div>
     </main>
   );
