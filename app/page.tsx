@@ -18,6 +18,10 @@ export default function HomePage() {
           <Link href="/collection" className="rounded border px-4 py-2">
             Ma collection
           </Link>
+
+          <Link href="/releases" className="rounded border px-4 py-2">
+            Prochaines sorties
+          </Link>
         </div>
       </section>
     </main>
