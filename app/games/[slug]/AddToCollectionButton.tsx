@@ -1,59 +1,187 @@
 "use client";
 
 import { createClient } from "@/utils/supabase/client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+type Platform = {
+  id: number;
+  name: string;
+};
+
+const statuses = [
+  { value: "owned", label: "Possédé" },
+  { value: "backlog", label: "Backlog" },
+  { value: "playing", label: "En cours" },
+  { value: "completed", label: "Terminé" },
+  { value: "wishlist", label: "Wishlist" },
+  { value: "preordered", label: "Précommandé" },
+] as const;
+
+const formats = [
+  { value: "physical", label: "Physique" },
+  { value: "digital", label: "Numérique" },
+  { value: "both", label: "Les deux" },
+] as const;
+
+const regions = [
+  { value: "PAL", label: "PAL" },
+  { value: "US", label: "US" },
+  { value: "JAP", label: "JAP" },
+  { value: "ASIA", label: "ASIA" },
+  { value: "WORLD", label: "WORLD" },
+] as const;
 
 export default function AddToCollectionButton({ gameId }: { gameId: number }) {
-  const [message, setMessage] = useState("");
+  const supabase = createClient();
 
-  async function addToCollection() {
-    const supabase = createClient();
+  const [platforms, setPlatforms] = useState<Platform[]>([]);
+  const [platformId, setPlatformId] = useState("");
+  const [format, setFormat] = useState("physical");
+  const [region, setRegion] = useState("PAL");
+  const [status, setStatus] = useState("owned");
+  const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    async function loadPlatforms() {
+      const { data, error } = await supabase
+        .from("platforms")
+        .select("id, name")
+        .order("id");
+
+      if (error) {
+        setMessage(`Erreur plateformes : ${error.message}`);
+        return;
+      }
+
+      setPlatforms(data ?? []);
+
+      if (data && data.length > 0) {
+        setPlatformId(String(data[0].id));
+      }
+    }
+
+    loadPlatforms();
+  }, [supabase]);
+
+  async function addToCollection(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    setIsLoading(true);
 
     const { data: userData } = await supabase.auth.getUser();
 
     if (!userData.user) {
       setMessage("Connecte-toi pour ajouter ce jeu.");
+      setIsLoading(false);
       return;
     }
 
-    const { data: platform, error: platformError } = await supabase
-      .from("platforms")
-      .select("id")
-      .eq("name", "PS4")
-      .single();
-
-    if (platformError || !platform) {
-      setMessage("Plateforme PS4 introuvable dans Supabase.");
+    if (!platformId) {
+      setMessage("Choisis une plateforme.");
+      setIsLoading(false);
       return;
     }
 
     const { error } = await supabase.from("user_collections").insert({
       user_id: userData.user.id,
       game_id: gameId,
-      platform_id: platform.id,
-      status: "owned",
-      format: "physical",
-      region: "PAL",
+      platform_id: Number(platformId),
+      status,
+      format,
+      region,
     });
 
     if (error) {
-      setMessage(error.message);
+      if (error.code === "23505") {
+        setMessage("Ce jeu existe déjà dans ta collection avec cette plateforme, région et format.");
+      } else {
+        setMessage(`Erreur : ${error.message}`);
+      }
+
+      setIsLoading(false);
       return;
     }
 
     setMessage("Jeu ajouté à ta collection.");
+    setIsLoading(false);
   }
 
   return (
-    <div>
+    <form onSubmit={addToCollection} className="rounded-xl border p-4">
+      <h2 className="text-xl font-semibold">Ajouter à ma collection</h2>
+
+      <div className="mt-4 grid gap-4">
+        <label className="grid gap-1">
+          <span className="text-sm font-medium">Plateforme</span>
+          <select
+            value={platformId}
+            onChange={(event) => setPlatformId(event.target.value)}
+            className="rounded border px-3 py-2"
+          >
+            {platforms.map((platform) => (
+              <option key={platform.id} value={platform.id}>
+                {platform.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="grid gap-1">
+          <span className="text-sm font-medium">Format</span>
+          <select
+            value={format}
+            onChange={(event) => setFormat(event.target.value)}
+            className="rounded border px-3 py-2"
+          >
+            {formats.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="grid gap-1">
+          <span className="text-sm font-medium">Région</span>
+          <select
+            value={region}
+            onChange={(event) => setRegion(event.target.value)}
+            className="rounded border px-3 py-2"
+          >
+            {regions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="grid gap-1">
+          <span className="text-sm font-medium">Statut</span>
+          <select
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+            className="rounded border px-3 py-2"
+          >
+            {statuses.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       <button
-        onClick={addToCollection}
-        className="rounded bg-black px-4 py-2 text-white"
+        type="submit"
+        disabled={isLoading || platforms.length === 0}
+        className="mt-4 rounded bg-black px-4 py-2 text-white disabled:opacity-50"
       >
-        Ajouter à ma collection
+        {isLoading ? "Ajout..." : "Ajouter à ma collection"}
       </button>
 
-      {message && <p className="mt-2 text-sm">{message}</p>}
-    </div>
+      {message && <p className="mt-3 text-sm">{message}</p>}
+    </form>
   );
 }
