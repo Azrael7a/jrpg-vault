@@ -275,8 +275,8 @@ export default function CollectionList({ items }: { items: CollectionItem[] }) {
               <div className="flex flex-col gap-2 md:min-w-48">
                 <UpdateCollectionStatusSelect
                   itemId={item.id}
-                  initialStatus={item.status}
-                />
+                  currentStatus={item.status}
+                 />
 
                 <DeleteCollectionItemButton itemId={item.id} />
               </div>
