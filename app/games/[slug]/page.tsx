@@ -127,7 +127,7 @@ export default async function GamePage({
     notFound();
   }
 
-  const game = data as Game;
+  const game = data as unknown as Game;
 
   const tags =
     game.game_tags

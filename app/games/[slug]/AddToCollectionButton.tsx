@@ -10,11 +10,12 @@ type Platform = {
 
 const statuses = [
   { value: "owned", label: "Possédé" },
-  { value: "backlog", label: "Backlog" },
+  { value: "backlog", label: "À faire" },
   { value: "playing", label: "En cours" },
   { value: "completed", label: "Terminé" },
   { value: "wishlist", label: "Wishlist" },
   { value: "preordered", label: "Précommandé" },
+  { value: "abandoned", label: "Abandonné" },
 ] as const;
 
 const formats = [
@@ -94,7 +95,9 @@ export default function AddToCollectionButton({ gameId }: { gameId: number }) {
 
     if (error) {
       if (error.code === "23505") {
-        setMessage("Ce jeu existe déjà dans ta collection avec cette plateforme, région et format.");
+        setMessage(
+          "Ce jeu existe déjà dans ta collection avec cette plateforme, région et format."
+        );
       } else {
         setMessage(`Erreur : ${error.message}`);
       }
@@ -108,12 +111,12 @@ export default function AddToCollectionButton({ gameId }: { gameId: number }) {
   }
 
   return (
-    <form onSubmit={addToCollection} className="rounded-xl border p-4">
+    <form onSubmit={addToCollection} className="jrpg-card p-4">
       <h2 className="text-xl font-semibold">Ajouter à ma collection</h2>
 
       <div className="mt-4 grid gap-4">
         <label className="grid gap-1">
-          <span className="text-sm font-medium">Plateforme</span>
+          <span className="text-sm font-medium text-slate-200">Plateforme</span>
           <select
             value={platformId}
             onChange={(event) => setPlatformId(event.target.value)}
@@ -128,7 +131,7 @@ export default function AddToCollectionButton({ gameId }: { gameId: number }) {
         </label>
 
         <label className="grid gap-1">
-          <span className="text-sm font-medium">Format</span>
+          <span className="text-sm font-medium text-slate-200">Format</span>
           <select
             value={format}
             onChange={(event) => setFormat(event.target.value)}
@@ -143,7 +146,7 @@ export default function AddToCollectionButton({ gameId }: { gameId: number }) {
         </label>
 
         <label className="grid gap-1">
-          <span className="text-sm font-medium">Région</span>
+          <span className="text-sm font-medium text-slate-200">Région</span>
           <select
             value={region}
             onChange={(event) => setRegion(event.target.value)}
@@ -158,7 +161,7 @@ export default function AddToCollectionButton({ gameId }: { gameId: number }) {
         </label>
 
         <label className="grid gap-1">
-          <span className="text-sm font-medium">Statut</span>
+          <span className="text-sm font-medium text-slate-200">Statut</span>
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value)}
@@ -176,12 +179,12 @@ export default function AddToCollectionButton({ gameId }: { gameId: number }) {
       <button
         type="submit"
         disabled={isLoading || platforms.length === 0}
-        className="mt-4 rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+        className="jrpg-button-primary mt-4 px-4 py-2 disabled:opacity-50"
       >
         {isLoading ? "Ajout..." : "Ajouter à ma collection"}
       </button>
 
-      {message && <p className="mt-3 text-sm">{message}</p>}
+      {message && <p className="mt-3 text-sm text-slate-300">{message}</p>}
     </form>
   );
 }
