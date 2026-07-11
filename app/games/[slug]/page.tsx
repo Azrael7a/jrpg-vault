@@ -3,11 +3,19 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import AddToCollectionButton from "./AddToCollectionButton";
 
+type Tag = {
+  id: number;
+  name: string;
+};
+
 type TagRelation = {
-  tags: {
-    id: number;
-    name: string;
-  } | null;
+  tags: Tag | Tag[] | null;
+};
+
+type Platform = {
+  id: number;
+  name: string;
+  manufacturer: string | null;
 };
 
 type ReleaseRelation = {
@@ -18,18 +26,7 @@ type ReleaseRelation = {
   digital: boolean | null;
   status: string | null;
   edition_name: string | null;
-  platforms:
-    | {
-        id: number;
-        name: string;
-        manufacturer: string | null;
-      }
-    | {
-        id: number;
-        name: string;
-        manufacturer: string | null;
-      }[]
-    | null;
+  platforms: Platform | Platform[] | null;
 };
 
 type Game = {
@@ -75,6 +72,22 @@ function formatStatus(status: string | null) {
     default:
       return "Statut inconnu";
   }
+}
+
+function formatReleaseFormat(physical: boolean | null, digital: boolean | null) {
+  if (physical && digital) {
+    return "Physique + démat";
+  }
+
+  if (physical) {
+    return "Physique";
+  }
+
+  if (digital) {
+    return "Dématérialisé";
+  }
+
+  return "Inconnu";
 }
 
 export default async function GamePage({
@@ -131,8 +144,8 @@ export default async function GamePage({
 
   const tags =
     game.game_tags
-      ?.map((relation) => relation.tags)
-      .filter((tag): tag is { id: number; name: string } => Boolean(tag)) ?? [];
+      ?.map((relation) => normalizeRelation(relation.tags))
+      .filter((tag): tag is Tag => Boolean(tag)) ?? [];
 
   const releases =
     game.game_releases
@@ -239,7 +252,7 @@ export default async function GamePage({
             Aucune sortie n’est encore renseignée pour ce jeu.
           </div>
         ) : (
-          <div className="mt-4 overflow-hidden rounded-xl border">
+          <div className="mt-4 overflow-x-auto rounded-xl border">
             <table className="w-full text-left text-sm">
               <thead className="bg-gray-50">
                 <tr>
@@ -264,13 +277,10 @@ export default async function GamePage({
                     <td className="p-3">{formatDate(release.release_date)}</td>
 
                     <td className="p-3">
-                      {release.physical && release.digital
-                        ? "Physique + démat"
-                        : release.physical
-                          ? "Physique"
-                          : release.digital
-                            ? "Dématérialisé"
-                            : "Inconnu"}
+                      {formatReleaseFormat(
+                        release.physical,
+                        release.digital
+                      )}
                     </td>
 
                     <td className="p-3">{formatStatus(release.status)}</td>
