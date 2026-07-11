@@ -22,6 +22,10 @@ export default function HomePage() {
           <Link href="/releases" className="rounded border px-4 py-2">
             Prochaines sorties
           </Link>
+
+          <Link href="/news" className="rounded border px-4 py-2">
+            Actualités
+          </Link>
         </div>
       </section>
     </main>
