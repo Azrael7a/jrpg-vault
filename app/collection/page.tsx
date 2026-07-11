@@ -1,5 +1,22 @@
 import { createClient } from "@/utils/supabase/server";
 import Link from "next/link";
+import DeleteCollectionItemButton from "./DeleteCollectionItemButton";
+
+const statusLabels: Record<string, string> = {
+  owned: "Possédé",
+  playing: "En cours",
+  completed: "Terminé",
+  backlog: "Backlog",
+  wishlist: "Wishlist",
+  preordered: "Précommandé",
+  abandoned: "Abandonné",
+};
+
+const formatLabels: Record<string, string> = {
+  physical: "Physique",
+  digital: "Numérique",
+  both: "Les deux",
+};
 
 export default async function CollectionPage() {
   const supabase = await createClient();
@@ -62,9 +79,11 @@ export default async function CollectionPage() {
             </h2>
 
             <p>Plateforme : {item.platforms?.name}</p>
-            <p>Format : {item.format}</p>
+            <p>Format : {formatLabels[item.format] ?? item.format}</p>
             <p>Région : {item.region}</p>
-            <p>Statut : {item.status}</p>
+            <p>Statut : {statusLabels[item.status] ?? item.status}</p>
+
+            <DeleteCollectionItemButton itemId={item.id} />
           </div>
         ))}
       </div>
