@@ -58,6 +58,25 @@ const formatLabels: Record<CollectionFormat, string> = {
 };
 
 export default function CollectionList({ items }: { items: CollectionItem[] }) {
+  if (items.length === 0) {
+    return (
+      <div className="mt-8 rounded-xl border bg-gray-50 p-8 text-center">
+        <h2 className="text-2xl font-bold">Ta collection est vide</h2>
+
+        <p className="mx-auto mt-3 max-w-xl text-gray-600">
+          Commence par ajouter quelques JRPG depuis le catalogue. Tu pourras
+          ensuite les classer par statut, plateforme, format et région.
+        </p>
+
+        <Link
+          href="/games"
+          className="mt-6 inline-block rounded bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+        >
+          Ajouter mon premier JRPG
+        </Link>
+      </div>
+    );
+  }
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
@@ -302,4 +321,4 @@ export default function CollectionList({ items }: { items: CollectionItem[] }) {
       </div>
     </div>
   );
-}
+}	

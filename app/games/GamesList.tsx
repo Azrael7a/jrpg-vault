@@ -12,6 +12,18 @@ type Game = {
 };
 
 export default function GamesList({ games }: { games: Game[] }) {
+  if (games.length === 0) {
+    return (
+      <div className="mt-8 rounded-xl border bg-gray-50 p-8 text-center">
+        <h2 className="text-2xl font-bold">Catalogue vide</h2>
+
+        <p className="mx-auto mt-3 max-w-xl text-gray-600">
+          Aucun JRPG n’a encore été ajouté au catalogue. Ajoute des jeux depuis
+          Supabase pour commencer à construire ta base.
+        </p>
+      </div>
+    );
+  }
   const [search, setSearch] = useState("");
 
   const filteredGames = useMemo(() => {
