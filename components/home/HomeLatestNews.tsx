@@ -78,17 +78,15 @@ export default function HomeLatestNews({ news }: { news: HomeNewsItem[] }) {
       )}
 
       {featuredNews && (
-        <div className="mt-6">
+        <div className="mt-6 grid gap-4 lg:grid-cols-[1.15fr_1fr]">
           <Link
             href={`/news/${featuredNews.slug}`}
-            className="group relative block overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 hover:border-purple-500"
+            className="group relative block min-h-[360px] overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 hover:border-purple-500"
           >
-            <div className="aspect-[21/9] bg-slate-800">
-              <NewsImage
-                coverUrl={featuredNews.related_game?.cover_url}
-                title={featuredNews.title}
-              />
-            </div>
+            <NewsImage
+              coverUrl={featuredNews.related_game?.cover_url}
+              title={featuredNews.title}
+            />
 
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-transparent" />
 
@@ -112,46 +110,44 @@ export default function HomeLatestNews({ news }: { news: HomeNewsItem[] }) {
               </p>
             </div>
           </Link>
-        </div>
-      )}
 
-      {displayedSecondaryNews.length > 0 && (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          {displayedSecondaryNews.map((item) => (
-            <Link
-              key={item.id}
-              href={`/news/${item.slug}`}
-              className="group overflow-hidden rounded-xl border border-slate-800 bg-slate-950 hover:border-purple-500"
-            >
-              <div className="aspect-[16/9] bg-slate-800">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {displayedSecondaryNews.map((item) => (
+              <Link
+                key={item.id}
+                href={`/news/${item.slug}`}
+                className="group relative min-h-[170px] overflow-hidden rounded-xl border border-slate-800 bg-slate-950 hover:border-purple-500"
+              >
                 <NewsImage
                   coverUrl={item.related_game?.cover_url}
                   title={item.title}
                   compact
                 />
-              </div>
 
-              <div className="p-4">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <span className="rounded-full bg-blue-600 px-2 py-1 text-[10px] font-semibold uppercase text-white">
-                    News jeu
-                  </span>
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
 
-                  <span className="shrink-0 text-xs text-slate-500">
-                    {formatDate(item.published_at)}
-                  </span>
+                <div className="absolute inset-x-0 bottom-0 p-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="rounded-full bg-blue-600 px-2 py-1 text-[10px] font-semibold uppercase text-white">
+                      News jeu
+                    </span>
+
+                    <span className="text-xs text-slate-300">
+                      {formatDate(item.published_at)}
+                    </span>
+                  </div>
+
+                  <h3 className="line-clamp-2 font-semibold leading-snug text-white">
+                    {item.title}
+                  </h3>
+
+                  <p className="mt-1 line-clamp-2 text-xs text-slate-300">
+                    {item.summary}
+                  </p>
                 </div>
-
-                <h3 className="line-clamp-2 font-semibold leading-snug text-white">
-                  {item.title}
-                </h3>
-
-                <p className="mt-2 line-clamp-2 text-sm text-slate-400">
-                  {item.summary}
-                </p>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            ))}
+          </div>
         </div>
       )}
     </section>

@@ -70,7 +70,7 @@ export default function HomeReleasesSection({
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-8 pb-16">
+    <section className="mx-auto max-w-[1500px] px-8 pb-16">
       <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-xl">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
