@@ -33,6 +33,10 @@ export default async function Navbar() {
             Actualités
           </Link>
 
+          <Link href="/about" className="hover:underline">
+            À propos
+          </Link>
+
           {user ? (
             <LogoutButton />
           ) : (
