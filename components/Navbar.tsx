@@ -38,9 +38,18 @@ export default async function Navbar() {
           </Link>
 
           {user ? (
-            <LogoutButton />
+            <>
+              <Link href="/account" className="hover:underline">
+                Compte
+              </Link>
+
+              <LogoutButton />
+            </>
           ) : (
-            <Link href="/auth/login" className="rounded border px-3 py-1 hover:bg-gray-100">
+            <Link
+              href="/auth/login"
+              className="rounded border px-3 py-1 hover:bg-gray-100"
+            >
               Connexion
             </Link>
           )}
