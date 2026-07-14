@@ -1,97 +1,100 @@
-import { createClient } from "@/utils/supabase/server";
 import Link from "next/link";
 
-type RelatedGame =
-  | {
-      title: string;
-      slug: string;
-    }
-  | {
-      title: string;
-      slug: string;
-    }[]
-  | null;
+import { getPublishedNews } from "@/lib/news/public-news";
 
-type RawNewsItem = {
-  id: number;
-  title: string;
-  slug: string;
-  summary: string;
-  published_at: string;
-  related_game: RelatedGame;
-};
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "long",
+  }).format(new Date(value));
+}
 
 export default async function NewsPage() {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("news")
-    .select(`
-      id,
-      title,
-      slug,
-      summary,
-      published_at,
-      related_game:games (
-        title,
-        slug
-      )
-    `)
-    .order("published_at", { ascending: false });
-
-  if (error) {
-    return (
-      <main className="mx-auto max-w-5xl p-8">
-        <h1 className="text-3xl font-bold">Actualités JRPG</h1>
-        <p className="mt-4 text-red-600">Erreur : {error.message}</p>
-      </main>
-    );
-  }
-
-  const newsItems = (data ?? []) as unknown as RawNewsItem[];
+  const newsList = await getPublishedNews();
 
   return (
-    <main className="mx-auto max-w-5xl p-8">
-      <h1 className="text-3xl font-bold">Actualités JRPG</h1>
+    <main className="mx-auto max-w-6xl px-6 py-12">
+      <header>
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
+          JRPG Vault
+        </p>
 
-      <p className="mt-2 text-gray-600">
-        Les dernières annonces, sorties et informations autour des JRPG.
-      </p>
+        <h1 className="mt-3 text-4xl font-bold">
+          Actualités JRPG
+        </h1>
 
-      <div className="mt-6 grid gap-4">
-        {newsItems.length === 0 && (
-          <div className="rounded-xl border p-4">
-            Aucune actualité pour le moment.
-          </div>
-        )}
+        <p className="mt-3 max-w-2xl text-zinc-400">
+          Les dernières annonces, sorties, bandes-annonces
+          et informations autour des JRPG.
+        </p>
+      </header>
 
-        {newsItems.map((item) => {
-          const relatedGame = Array.isArray(item.related_game)
-            ? item.related_game[0]
-            : item.related_game;
+      {newsList.length === 0 ? (
+        <section className="mt-10 rounded-2xl border border-dashed border-white/15 p-12 text-center">
+          <h2 className="text-xl font-semibold">
+            Aucune actualité publiée
+          </h2>
 
-          return (
-            <Link
-              key={item.id}
-              href={`/news/${item.slug}`}
-              className="rounded-xl border p-4 hover:bg-gray-50"
-            >
-              <h2 className="text-xl font-semibold">{item.title}</h2>
+          <p className="mt-2 text-zinc-400">
+            Les prochaines actualités apparaîtront ici.
+          </p>
+        </section>
+      ) : (
+        <section className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {newsList.map((news) => {
+            const description =
+              news.excerpt ??
+              news.summary ??
+              "";
 
-              <p className="mt-2 text-gray-700">{item.summary}</p>
+            return (
+              <article
+                key={news.id}
+                className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]"
+              >
+                {news.image_url && (
+                  <img
+                    src={news.image_url}
+                    alt={news.title}
+                    className="aspect-video w-full object-cover"
+                  />
+                )}
 
-              <div className="mt-3 text-sm text-gray-500">
-                <p>
-                  Publié le :{" "}
-                  {new Date(item.published_at).toLocaleDateString("fr-FR")}
-                </p>
+                <div className="p-6">
+                  <div className="flex flex-wrap items-center gap-3 text-sm">
+                    {news.category && (
+                      <span className="font-semibold text-violet-400">
+                        {news.category}
+                      </span>
+                    )}
 
-                {relatedGame && <p>Jeu lié : {relatedGame.title}</p>}
-              </div>
-            </Link>
-          );
-        })}
-      </div>
+                    <time
+                      dateTime={news.published_at}
+                      className="text-zinc-500"
+                    >
+                      {formatDate(news.published_at)}
+                    </time>
+                  </div>
+
+                  <h2 className="mt-3 text-xl font-bold">
+                    {news.title}
+                  </h2>
+
+                  <p className="mt-3 line-clamp-3 text-sm leading-6 text-zinc-400">
+                    {description}
+                  </p>
+
+                  <Link
+                    href={`/news/${news.slug}`}
+                    className="mt-6 inline-flex font-semibold text-violet-400 hover:text-violet-300"
+                  >
+                    Lire l’actualité →
+                  </Link>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+      )}
     </main>
   );
 }

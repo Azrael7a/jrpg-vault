@@ -1,106 +1,100 @@
-import { createClient } from "@/utils/supabase/server";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
-type RelatedGame =
-  | {
-      title: string;
-      slug: string;
-    }
-  | {
-      title: string;
-      slug: string;
-    }[]
-  | null;
+import { getPublishedNewsBySlug } from "@/lib/news/public-news";
 
-type RawNews = {
-  id: number;
-  title: string;
-  slug: string;
-  summary: string;
-  content: string | null;
-  source_url: string | null;
-  published_at: string;
-  related_game: RelatedGame;
+type NewsArticlePageProps = {
+  params: Promise<{
+    slug: string;
+  }>;
 };
 
-export default async function NewsDetailPage({
+export default async function NewsArticlePage({
   params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+}: NewsArticlePageProps) {
   const { slug } = await params;
-  const supabase = await createClient();
+  const news = await getPublishedNewsBySlug(slug);
 
-  const { data, error } = await supabase
-    .from("news")
-    .select(`
-      id,
-      title,
-      slug,
-      summary,
-      content,
-      source_url,
-      published_at,
-      related_game:games (
-        title,
-        slug
-      )
-    `)
-    .eq("slug", slug)
-    .single();
-
-  if (error || !data) {
-    return (
-      <main className="mx-auto max-w-5xl p-8">
-        <p>Actualité introuvable.</p>
-      </main>
-    );
+  if (!news) {
+    notFound();
   }
 
-  const news = data as unknown as RawNews;
-  const relatedGame = Array.isArray(news.related_game)
-    ? news.related_game[0]
-    : news.related_game;
+  const description =
+    news.excerpt ??
+    news.summary ??
+    "";
+
+  const formattedDate =
+    new Intl.DateTimeFormat("fr-FR", {
+      dateStyle: "long",
+      timeStyle: "short",
+    }).format(new Date(news.published_at));
 
   return (
-    <main className="mx-auto max-w-3xl p-8">
-      <Link href="/news" className="text-sm text-gray-600 hover:underline">
-        ← Retour aux actualités
+    <main className="mx-auto max-w-4xl px-6 py-12">
+      <Link
+        href="/news"
+        className="text-sm font-medium text-violet-400 hover:text-violet-300"
+      >
+        ← Toutes les actualités
       </Link>
 
-      <article className="mt-6">
-        <h1 className="text-3xl font-bold">{news.title}</h1>
+      <article className="mt-8">
+        <header>
+          {news.category && (
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
+              {news.category}
+            </p>
+          )}
 
-        <p className="mt-2 text-sm text-gray-500">
-          Publié le : {new Date(news.published_at).toLocaleDateString("fr-FR")}
-        </p>
+          <h1 className="mt-4 text-4xl font-bold leading-tight md:text-5xl">
+            {news.title}
+          </h1>
 
-        {relatedGame && (
-          <p className="mt-2 text-sm text-gray-600">
-            Jeu lié :{" "}
-            <Link href={`/games/${relatedGame.slug}`} className="underline">
-              {relatedGame.title}
-            </Link>
+          <time
+            dateTime={news.published_at}
+            className="mt-5 block text-sm text-zinc-500"
+          >
+            Publié le {formattedDate}
+          </time>
+        </header>
+
+        {news.image_url && (
+          <img
+            src={news.image_url}
+            alt={news.title}
+            className="mt-8 aspect-video w-full rounded-2xl object-cover"
+          />
+        )}
+
+        {description && (
+          <p className="mt-8 text-xl font-medium leading-8 text-zinc-200">
+            {description}
           </p>
         )}
 
-        <p className="mt-6 text-lg text-gray-700">{news.summary}</p>
-
-        <div className="mt-6 whitespace-pre-line leading-7 text-gray-800">
+        <div className="mt-8 whitespace-pre-wrap text-base leading-8 text-zinc-300">
           {news.content}
         </div>
 
-        {news.source_url && (
-          <p className="mt-8">
-            <a
-              href={news.source_url}
-              target="_blank"
-              rel="noreferrer"
-              className="underline"
-            >
-              Voir la source
-            </a>
-          </p>
+        {(news.source_name || news.source_url) && (
+          <footer className="mt-12 border-t border-white/10 pt-6">
+            <p className="text-sm text-zinc-500">
+              Source :{" "}
+              {news.source_url ? (
+                <a
+                  href={news.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-violet-400 hover:text-violet-300"
+                >
+                  {news.source_name ?? "Lien original"}
+                </a>
+              ) : (
+                news.source_name
+              )}
+            </p>
+          </footer>
         )}
       </article>
     </main>
