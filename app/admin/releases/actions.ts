@@ -111,60 +111,76 @@ export async function createReleaseGroup(formData: FormData) {
     gameId = createdGame.id;
   }
 
-  const releasesToInsert = platformIds.map((platformId) => ({
-    game_id: gameId,
-    platform_id: platformId,
-    release_date: releaseDate,
-    region,
-    physical,
-    digital,
-    status,
-    edition_name: editionName || null,
-  }));
-
-  const { error: releaseError } = await supabase
+  const { data: existingData, error: existingError } = await supabase
     .from("game_releases")
-    .insert(releasesToInsert);
+    .select("id, platform_id")
+    .eq("game_id", gameId);
 
-  if (releaseError) {
-    throw new Error(releaseError.message);
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  const existingReleases = (existingData ?? []) as {
+    id: number;
+    platform_id: number | null;
+  }[];
+
+  for (const platformId of platformIds) {
+    const payload = {
+      game_id: gameId,
+      platform_id: platformId,
+      release_date: releaseDate,
+      region,
+      physical,
+      digital,
+      status,
+      edition_name: editionName || null,
+    };
+
+    const existingRelease = existingReleases.find(
+      (release) => release.platform_id === platformId,
+    );
+
+    if (existingRelease) {
+      const { error: updateError } = await supabase
+        .from("game_releases")
+        .update(payload)
+        .eq("id", existingRelease.id);
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+    } else {
+      const { error: insertError } = await supabase
+        .from("game_releases")
+        .insert(payload);
+
+      if (insertError) {
+        throw new Error(insertError.message);
+      }
+    }
   }
 
   revalidateReleasePages();
   redirect("/admin/releases");
 }
 
-export async function updateReleaseGroup(formData: FormData) {
+export async function updateReleaseRows(formData: FormData) {
   const supabase = await ensureAdmin();
 
   const gameId = Number(formData.get("game_id"));
-  const releaseDate = String(formData.get("release_date") ?? "").trim();
-  const region = String(formData.get("region") ?? "PAL");
-  const status = String(formData.get("status") ?? "confirmed");
-  const editionName = String(formData.get("edition_name") ?? "").trim();
-
-  const physical = formData.get("physical") === "on";
-  const digital = formData.get("digital") === "on";
-
-  const platformIds = formData
-    .getAll("platform_ids")
-    .map((value) => Number(value))
-    .filter((value) => Number.isFinite(value));
 
   if (!Number.isFinite(gameId)) {
     throw new Error("Jeu invalide.");
   }
 
-  if (!releaseDate) {
-    throw new Error("La date de sortie est obligatoire.");
-  }
+  const enabledPlatformIds = formData
+    .getAll("enabled_platform_ids")
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
 
-  if (platformIds.length === 0) {
+  if (enabledPlatformIds.length === 0) {
     throw new Error("Sélectionne au moins une plateforme.");
-  }
-
-  if (!physical && !digital) {
-    throw new Error("Sélectionne au moins un format : physique ou numérique.");
   }
 
   const { data: existingData, error: existingError } = await supabase
@@ -184,7 +200,8 @@ export async function updateReleaseGroup(formData: FormData) {
   const idsToDelete = existingReleases
     .filter(
       (release) =>
-        release.platform_id !== null && !platformIds.includes(release.platform_id),
+        release.platform_id === null ||
+        !enabledPlatformIds.includes(release.platform_id),
     )
     .map((release) => release.id);
 
@@ -199,10 +216,31 @@ export async function updateReleaseGroup(formData: FormData) {
     }
   }
 
-  for (const platformId of platformIds) {
-    const existingRelease = existingReleases.find(
-      (release) => release.platform_id === platformId,
+  for (const platformId of enabledPlatformIds) {
+    const releaseDate = String(
+      formData.get(`release_date_${platformId}`) ?? "",
+    ).trim();
+
+    const region = String(formData.get(`region_${platformId}`) ?? "PAL");
+    const status = String(
+      formData.get(`status_${platformId}`) ?? "confirmed",
     );
+    const editionName = String(
+      formData.get(`edition_name_${platformId}`) ?? "",
+    ).trim();
+
+    const physical = formData.get(`physical_${platformId}`) === "on";
+    const digital = formData.get(`digital_${platformId}`) === "on";
+
+    if (!releaseDate) {
+      throw new Error(`Date manquante pour la plateforme ${platformId}.`);
+    }
+
+    if (!physical && !digital) {
+      throw new Error(
+        `Sélectionne au moins un format pour la plateforme ${platformId}.`,
+      );
+    }
 
     const payload = {
       game_id: gameId,
@@ -214,6 +252,10 @@ export async function updateReleaseGroup(formData: FormData) {
       status,
       edition_name: editionName || null,
     };
+
+    const existingRelease = existingReleases.find(
+      (release) => release.platform_id === platformId,
+    );
 
     if (existingRelease) {
       const { error: updateError } = await supabase

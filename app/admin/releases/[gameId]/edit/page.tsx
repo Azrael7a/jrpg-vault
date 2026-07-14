@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
-import { updateReleaseGroup } from "../../actions";
+import { updateReleaseRows } from "../../actions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -109,13 +109,13 @@ export default async function EditReleasePage({
 
   const firstRelease = releases[0] ?? null;
 
-  const selectedPlatformIds = releases
-    .map((release) => release.platform_id)
-    .filter((platformId): platformId is number => typeof platformId === "number");
+  function getReleaseForPlatform(platformId: number) {
+    return releases.find((release) => release.platform_id === platformId) ?? null;
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 px-8 py-10 text-slate-100">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-[1500px]">
         <Link href="/admin/releases" className="text-sm text-purple-300 underline">
           ← Retour au calendrier admin
         </Link>
@@ -141,128 +141,164 @@ export default async function EditReleasePage({
             </p>
 
             <h1 className="mt-1 text-3xl font-bold text-white">
-              Modifier une sortie
+              Modifier les sorties par support
             </h1>
 
             <p className="mt-2 text-xl text-slate-200">{game.title}</p>
 
-            <p className="mt-2 text-slate-400">
-              Corrige une date, ajoute ou retire une plateforme, ou passe la
-              sortie en “Repoussé” ou “Sorti”.
+            <p className="mt-2 max-w-3xl text-slate-400">
+              Chaque plateforme peut avoir sa propre date, son propre statut et
+              son propre format. Décoche une plateforme puis enregistre pour
+              supprimer cette ligne de sortie.
             </p>
           </div>
         </div>
 
-        <form action={updateReleaseGroup} className="mt-8 grid gap-8">
+        <form action={updateReleaseRows} className="mt-8 grid gap-8">
           <input type="hidden" name="game_id" value={game.id} />
 
           <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-            <h2 className="text-xl font-bold text-white">
-              Informations de sortie
-            </h2>
+            <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+              <div>
+                <h2 className="text-xl font-bold text-white">
+                  Sorties par plateforme
+                </h2>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <label className="grid gap-2">
-                <span className="text-sm text-slate-300">Date de sortie</span>
-                <input
-                  name="release_date"
-                  type="date"
-                  required
-                  defaultValue={firstRelease?.release_date ?? ""}
-                  className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-                />
-              </label>
-
-              <label className="grid gap-2">
-                <span className="text-sm text-slate-300">Région</span>
-                <select
-                  name="region"
-                  defaultValue={firstRelease?.region ?? "PAL"}
-                  className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-                >
-                  <option value="PAL">PAL</option>
-                  <option value="US">US</option>
-                  <option value="JAP">JAP</option>
-                  <option value="ASIA">ASIA</option>
-                  <option value="WORLD">WORLD</option>
-                </select>
-              </label>
-
-              <label className="grid gap-2">
-                <span className="text-sm text-slate-300">Statut</span>
-                <select
-                  name="status"
-                  defaultValue={firstRelease?.status ?? "confirmed"}
-                  className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-                >
-                  <option value="confirmed">Confirmé</option>
-                  <option value="rumor">Rumeur</option>
-                  <option value="delayed">Repoussé</option>
-                  <option value="released">Sorti</option>
-                </select>
-              </label>
-
-              <label className="grid gap-2">
-                <span className="text-sm text-slate-300">Édition</span>
-                <input
-                  name="edition_name"
-                  type="text"
-                  defaultValue={firstRelease?.edition_name ?? ""}
-                  className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-                  placeholder="Standard, Deluxe, Collector..."
-                />
-              </label>
+                <p className="mt-1 text-sm text-slate-400">
+                  Coche les supports actifs et renseigne les dates séparément.
+                </p>
+              </div>
             </div>
 
-            <div className="mt-6">
-              <p className="text-sm font-semibold text-slate-300">
-                Plateformes
-              </p>
+            <div className="mt-6 grid gap-4">
+              {platforms.map((platform) => {
+                const release = getReleaseForPlatform(platform.id);
+                const isEnabled = Boolean(release);
 
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-                {platforms.map((platform) => (
-                  <label
+                const defaultReleaseDate =
+                  release?.release_date ?? firstRelease?.release_date ?? "";
+
+                const defaultRegion = release?.region ?? firstRelease?.region ?? "PAL";
+                const defaultStatus =
+                  release?.status ?? firstRelease?.status ?? "confirmed";
+                const defaultEditionName =
+                  release?.edition_name ?? firstRelease?.edition_name ?? "";
+
+                const defaultPhysical =
+                  release?.physical ?? firstRelease?.physical ?? true;
+                const defaultDigital =
+                  release?.digital ?? firstRelease?.digital ?? true;
+
+                return (
+                  <div
                     key={platform.id}
-                    className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950 p-3 text-sm text-slate-200"
+                    className="rounded-2xl border border-slate-800 bg-slate-950 p-4"
                   >
-                    <input
-                      name="platform_ids"
-                      type="checkbox"
-                      value={platform.id}
-                      defaultChecked={selectedPlatformIds.includes(platform.id)}
-                      className="h-4 w-4"
-                    />
+                    <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[180px_1fr] lg:items-start">
+                      <label className="flex items-center gap-3 text-sm font-semibold text-white">
+                        <input
+                          name="enabled_platform_ids"
+                          type="checkbox"
+                          value={platform.id}
+                          defaultChecked={isEnabled}
+                          className="h-4 w-4"
+                        />
 
-                    <span>{platform.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
+                        <span>{platform.name}</span>
+                      </label>
 
-            <div className="mt-6">
-              <p className="text-sm font-semibold text-slate-300">Format</p>
+                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                        <label className="grid gap-2">
+                          <span className="text-xs text-slate-400">
+                            Date de sortie
+                          </span>
 
-              <div className="mt-3 flex flex-wrap gap-3">
-                <label className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950 p-3 text-sm text-slate-200">
-                  <input
-                    name="physical"
-                    type="checkbox"
-                    defaultChecked={Boolean(firstRelease?.physical)}
-                    className="h-4 w-4"
-                  />
-                  Physique
-                </label>
+                          <input
+                            name={`release_date_${platform.id}`}
+                            type="date"
+                            defaultValue={defaultReleaseDate}
+                            className="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+                          />
+                        </label>
 
-                <label className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950 p-3 text-sm text-slate-200">
-                  <input
-                    name="digital"
-                    type="checkbox"
-                    defaultChecked={Boolean(firstRelease?.digital)}
-                    className="h-4 w-4"
-                  />
-                  Numérique
-                </label>
-              </div>
+                        <label className="grid gap-2">
+                          <span className="text-xs text-slate-400">Région</span>
+
+                          <select
+                            name={`region_${platform.id}`}
+                            defaultValue={defaultRegion}
+                            className="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+                          >
+                            <option value="PAL">PAL</option>
+                            <option value="US">US</option>
+                            <option value="JAP">JAP</option>
+                            <option value="ASIA">ASIA</option>
+                            <option value="WORLD">WORLD</option>
+                          </select>
+                        </label>
+
+                        <label className="grid gap-2">
+                          <span className="text-xs text-slate-400">Statut</span>
+
+                          <select
+                            name={`status_${platform.id}`}
+                            defaultValue={defaultStatus}
+                            className="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+                          >
+                            <option value="confirmed">Confirmé</option>
+                            <option value="rumor">Rumeur</option>
+                            <option value="delayed">Repoussé</option>
+                            <option value="released">Sorti</option>
+                          </select>
+                        </label>
+
+                        <label className="grid gap-2">
+                          <span className="text-xs text-slate-400">Édition</span>
+
+                          <input
+                            name={`edition_name_${platform.id}`}
+                            type="text"
+                            defaultValue={defaultEditionName}
+                            className="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+                            placeholder="Standard"
+                          />
+                        </label>
+
+                        <div className="grid gap-2">
+                          <span className="text-xs text-slate-400">Format</span>
+
+                          <div className="flex flex-wrap gap-3 rounded border border-slate-700 bg-slate-900 px-3 py-2">
+                            <label className="flex items-center gap-2 text-sm text-slate-200">
+                              <input
+                                name={`physical_${platform.id}`}
+                                type="checkbox"
+                                defaultChecked={Boolean(defaultPhysical)}
+                              />
+                              Physique
+                            </label>
+
+                            <label className="flex items-center gap-2 text-sm text-slate-200">
+                              <input
+                                name={`digital_${platform.id}`}
+                                type="checkbox"
+                                defaultChecked={Boolean(defaultDigital)}
+                              />
+                              Numérique
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {!isEnabled && (
+                      <p className="mt-3 text-xs text-slate-500">
+                        Plateforme inactive actuellement. Coche-la pour créer une
+                        sortie sur ce support.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </section>
 

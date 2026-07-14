@@ -25,6 +25,17 @@ type HomeRelease = {
   } | null;
 };
 
+type GroupedPlatformRelease = {
+  platform: {
+    id: number;
+    name: string;
+    manufacturer?: string | null;
+  };
+  release_date: string | null;
+  edition_name: string | null;
+  status: string | null | undefined;
+};
+
 type GroupedRelease = {
   game_id: number;
   game: {
@@ -34,11 +45,7 @@ type GroupedRelease = {
     cover_url: string | null;
   };
   release_date: string | null;
-  platforms: {
-    id: number;
-    name: string;
-    manufacturer?: string | null;
-  }[];
+  platformReleases: GroupedPlatformRelease[];
   editionNames: string[];
 };
 
@@ -58,6 +65,17 @@ function formatDate(date: string | null) {
   }
 
   return new Date(date).toLocaleDateString("fr-FR");
+}
+
+function formatShortDate(date: string | null) {
+  if (!date) {
+    return "?";
+  }
+
+  return new Date(date).toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+  });
 }
 
 function normalizePlatformName(name: string) {
@@ -145,7 +163,7 @@ function platformMatchesFilter(platformName: string, filter: string) {
 
 function getPlatformTagClass(platformName: string) {
   if (isSwitchPlatform(platformName)) {
-    return "border-red-500/40 bg-red-950/70 text-red-200";
+    return "border-[#E60012] bg-[#E60012] text-white";
   }
 
   if (isPlayStationPlatform(platformName)) {
@@ -173,6 +191,16 @@ function getFilterButtonClass(filter: string, currentFilter: string) {
   return "rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800";
 }
 
+function hasDifferentDates(platformReleases: GroupedPlatformRelease[]) {
+  const dates = new Set(
+    platformReleases
+      .map((platformRelease) => platformRelease.release_date)
+      .filter(Boolean),
+  );
+
+  return dates.size > 1;
+}
+
 function groupReleasesByGame(releases: HomeRelease[]) {
   const groupedReleases = new Map<number, GroupedRelease>();
 
@@ -188,19 +216,31 @@ function groupReleasesByGame(releases: HomeRelease[]) {
         game_id: release.game_id,
         game: release.game,
         release_date: release.release_date,
-        platforms: [release.platform],
+        platformReleases: [
+          {
+            platform: release.platform,
+            release_date: release.release_date,
+            edition_name: release.edition_name,
+            status: release.status,
+          },
+        ],
         editionNames: release.edition_name ? [release.edition_name] : [],
       });
 
       continue;
     }
 
-    const platformAlreadyAdded = existingRelease.platforms.some(
-      (platform) => platform.id === release.platform?.id,
+    const existingPlatformRelease = existingRelease.platformReleases.find(
+      (platformRelease) => platformRelease.platform.id === release.platform?.id,
     );
 
-    if (!platformAlreadyAdded) {
-      existingRelease.platforms.push(release.platform);
+    if (!existingPlatformRelease) {
+      existingRelease.platformReleases.push({
+        platform: release.platform,
+        release_date: release.release_date,
+        edition_name: release.edition_name,
+        status: release.status,
+      });
     }
 
     if (
@@ -248,8 +288,8 @@ export default function HomeReleasesSection({
     return groupedReleases.filter((release) => {
       const matchesPlatform =
         platformFilter === "Tous" ||
-        release.platforms.some((platform) =>
-          platformMatchesFilter(platform.name, platformFilter),
+        release.platformReleases.some((platformRelease) =>
+          platformMatchesFilter(platformRelease.platform.name, platformFilter),
         );
 
       const matchesFollowed =
@@ -340,62 +380,74 @@ export default function HomeReleasesSection({
                 Aucune sortie ne correspond aux filtres sélectionnés.
               </div>
             ) : (
-              filteredReleases.map((release) => (
-                <Link
-                  key={release.game_id}
-                  href={`/games/${release.game.slug}`}
-                  className="w-72 shrink-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-950 hover:border-purple-500"
-                >
-                  <div className="relative aspect-[16/9] bg-slate-800">
-                    {release.game.cover_url ? (
-                      <img
-                        src={release.game.cover_url}
-                        alt={`Jaquette de ${release.game.title}`}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center px-4 text-center text-lg font-bold text-purple-300">
-                        {release.game.title}
-                      </div>
-                    )}
+              filteredReleases.map((release) => {
+                const differentDates = hasDifferentDates(
+                  release.platformReleases,
+                );
 
-                    {followedGameIds.includes(release.game_id) && (
-                      <div className="absolute right-3 top-3 rounded-full border border-purple-400 bg-slate-950/90 px-2 py-1 text-xs text-purple-200">
-                        ★ Suivi
-                      </div>
-                    )}
-                  </div>
+                return (
+                  <Link
+                    key={release.game_id}
+                    href={`/games/${release.game.slug}`}
+                    className="w-72 shrink-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-950 hover:border-purple-500"
+                  >
+                    <div className="relative aspect-[16/9] bg-slate-800">
+                      {release.game.cover_url ? (
+                        <img
+                          src={release.game.cover_url}
+                          alt={`Jaquette de ${release.game.title}`}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center px-4 text-center text-lg font-bold text-purple-300">
+                          {release.game.title}
+                        </div>
+                      )}
 
-                  <div className="p-4">
-                    <h3 className="line-clamp-2 min-h-12 font-semibold text-white">
-                      {release.game.title}
-                    </h3>
-
-                    <p className="mt-3 text-sm text-slate-400">
-                      {formatDate(release.release_date)}
-                    </p>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {release.platforms.map((platform) => (
-                        <span
-                          key={platform.id}
-                          className={`rounded border px-2 py-1 text-xs font-medium ${getPlatformTagClass(
-                            platform.name,
-                          )}`}
-                        >
-                          {platform.name}
-                        </span>
-                      ))}
+                      {followedGameIds.includes(release.game_id) && (
+                        <div className="absolute right-3 top-3 rounded-full border border-purple-400 bg-slate-950/90 px-2 py-1 text-xs text-purple-200">
+                          ★ Suivi
+                        </div>
+                      )}
                     </div>
 
-                    <p className="mt-3 line-clamp-1 text-xs text-slate-500">
-                      {release.editionNames.length > 0
-                        ? release.editionNames.join(" · ")
-                        : "Édition standard"}
-                    </p>
-                  </div>
-                </Link>
-              ))
+                    <div className="p-4">
+                      <h3 className="line-clamp-2 min-h-12 font-semibold text-white">
+                        {release.game.title}
+                      </h3>
+
+                      <p className="mt-3 text-sm text-slate-400">
+                        {differentDates ? "Première sortie : " : "Sortie : "}
+                        {formatDate(release.release_date)}
+                      </p>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {release.platformReleases.map((platformRelease) => (
+                          <span
+                            key={platformRelease.platform.id}
+                            className={`rounded border px-2 py-1 text-xs font-medium ${getPlatformTagClass(
+                              platformRelease.platform.name,
+                            )}`}
+                          >
+                            {platformRelease.platform.name}
+                            {differentDates
+                              ? ` · ${formatShortDate(
+                                  platformRelease.release_date,
+                                )}`
+                              : ""}
+                          </span>
+                        ))}
+                      </div>
+
+                      <p className="mt-3 line-clamp-1 text-xs text-slate-500">
+                        {release.editionNames.length > 0
+                          ? release.editionNames.join(" · ")
+                          : "Édition standard"}
+                      </p>
+                    </div>
+                  </Link>
+                );
+              })
             )}
           </div>
 
