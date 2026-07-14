@@ -267,7 +267,7 @@ export default async function HomePage() {
       }
     }
 
-    latestItems = collectionItems.slice(0, 3);
+    latestItems = collectionItems.slice(0, 5);
 
     followedGameIds = (
       (followedGamesResult.data ?? []) as unknown as FollowedGameRow[]
