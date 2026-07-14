@@ -2,32 +2,38 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import AddToCollectionButton from "./AddToCollectionButton";
-import FollowGameButton from "./FollowGameButton";
-
-type Tag = {
-  id: number;
-  name: string;
-};
 
 type TagRelation = {
-  tags: Tag | Tag[] | null;
+  tags:
+    | {
+        id: number;
+        name: string;
+      }
+    | {
+        id: number;
+        name: string;
+      }[]
+    | null;
 };
 
-type Platform = {
+type PlatformRelation = {
   id: number;
   name: string;
   manufacturer: string | null;
 };
 
-type ReleaseRelation = {
+type VersionRelation = {
   id: number;
-  region: string | null;
+  region: string;
   release_date: string | null;
   physical: boolean | null;
   digital: boolean | null;
-  status: string | null;
   edition_name: string | null;
-  platforms: Platform | Platform[] | null;
+  platforms: PlatformRelation | PlatformRelation[] | null;
+};
+
+type ReleaseRelation = VersionRelation & {
+  status: string | null;
 };
 
 type Game = {
@@ -41,6 +47,7 @@ type Game = {
   cover_url: string | null;
   release_year: number | null;
   game_tags: TagRelation[] | null;
+  game_platforms: VersionRelation[] | null;
   game_releases: ReleaseRelation[] | null;
 };
 
@@ -52,12 +59,20 @@ function normalizeRelation<T>(relation: T | T[] | null): T | null {
   return relation;
 }
 
+function normalizeArray<T>(relation: T | T[] | null): T[] {
+  if (!relation) {
+    return [];
+  }
+
+  return Array.isArray(relation) ? relation : [relation];
+}
+
 function formatDate(date: string | null) {
   if (!date) {
     return "Date inconnue";
   }
 
-  return new Date(date).toLocaleDateString("fr-FR");
+  return new Date(`${date}T12:00:00`).toLocaleDateString("fr-FR");
 }
 
 function formatStatus(status: string | null) {
@@ -75,9 +90,9 @@ function formatStatus(status: string | null) {
   }
 }
 
-function formatReleaseFormat(physical: boolean | null, digital: boolean | null) {
+function formatMedia(physical: boolean | null, digital: boolean | null) {
   if (physical && digital) {
-    return "Physique + démat";
+    return "Physique + numérique";
   }
 
   if (physical) {
@@ -85,10 +100,10 @@ function formatReleaseFormat(physical: boolean | null, digital: boolean | null) 
   }
 
   if (digital) {
-    return "Dématérialisé";
+    return "Numérique";
   }
 
-  return "Inconnu";
+  return "Format inconnu";
 }
 
 export default async function GamePage({
@@ -118,6 +133,19 @@ export default async function GamePage({
           name
         )
       ),
+      game_platforms (
+        id,
+        region,
+        release_date,
+        physical,
+        digital,
+        edition_name,
+        platforms (
+          id,
+          name,
+          manufacturer
+        )
+      ),
       game_releases (
         id,
         region,
@@ -132,7 +160,7 @@ export default async function GamePage({
           manufacturer
         )
       )
-    `
+    `,
     )
     .eq("slug", slug)
     .single();
@@ -141,29 +169,32 @@ export default async function GamePage({
     notFound();
   }
 
-  const game = data as unknown as Game;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  let isFollowed = false;
-
-  if (user) {
-    const { data: followedGame } = await supabase
-      .from("user_followed_games")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("game_id", game.id)
-      .maybeSingle();
-
-    isFollowed = Boolean(followedGame);
-  }
+  const game = data as Game;
 
   const tags =
     game.game_tags
-      ?.map((relation) => normalizeRelation(relation.tags))
-      .filter((tag): tag is Tag => Boolean(tag)) ?? [];
+      ?.flatMap((relation) => normalizeArray(relation.tags))
+      .filter((tag): tag is { id: number; name: string } => Boolean(tag)) ??
+    [];
+
+  const versions =
+    game.game_platforms
+      ?.map((version) => ({
+        ...version,
+        platform: normalizeRelation(version.platforms),
+      }))
+      .sort((a, b) => {
+        const platformComparison = (a.platform?.name ?? "").localeCompare(
+          b.platform?.name ?? "",
+          "fr",
+        );
+
+        if (platformComparison !== 0) {
+          return platformComparison;
+        }
+
+        return a.region.localeCompare(b.region, "fr");
+      }) ?? [];
 
   const releases =
     game.game_releases
@@ -179,13 +210,13 @@ export default async function GamePage({
 
   return (
     <main className="mx-auto max-w-5xl p-8">
-      <Link href="/games" className="text-sm underline">
+      <Link href="/games" className="text-sm text-violet-300 underline">
         ← Retour au catalogue
       </Link>
 
       <section className="mt-8 grid gap-8 md:grid-cols-[260px_1fr]">
         <div>
-          <div className="overflow-hidden rounded-2xl border bg-gray-100">
+          <div className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
             {game.cover_url ? (
               <img
                 src={game.cover_url}
@@ -193,25 +224,20 @@ export default async function GamePage({
                 className="h-full w-full object-cover"
               />
             ) : (
-              <div className="flex aspect-[3/4] items-center justify-center px-4 text-center text-sm text-gray-500">
+              <div className="flex aspect-[3/4] items-center justify-center px-4 text-center text-sm text-slate-500">
                 Pas de jaquette
               </div>
             )}
           </div>
 
-          <div className="mt-4 grid gap-3">
+          <div className="mt-4">
             <AddToCollectionButton gameId={game.id} />
-
-            <FollowGameButton
-              gameId={game.id}
-              initialIsFollowed={isFollowed}
-            />
           </div>
         </div>
 
         <div>
           {game.series && (
-            <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
               {game.series}
             </p>
           )}
@@ -220,19 +246,17 @@ export default async function GamePage({
 
           <div className="mt-4 flex flex-wrap gap-2 text-sm">
             {game.release_year && (
-              <span className="rounded bg-gray-100 px-2 py-1">
-                {game.release_year}
-              </span>
+              <span className="jrpg-badge">{game.release_year}</span>
             )}
 
             {game.developer && (
-              <span className="rounded bg-gray-100 px-2 py-1">
+              <span className="jrpg-badge">
                 Développeur : {game.developer}
               </span>
             )}
 
             {game.publisher && (
-              <span className="rounded bg-gray-100 px-2 py-1">
+              <span className="jrpg-badge">
                 Éditeur : {game.publisher}
               </span>
             )}
@@ -243,7 +267,7 @@ export default async function GamePage({
               {tags.map((tag) => (
                 <span
                   key={tag.id}
-                  className="rounded-full border px-3 py-1 text-sm"
+                  className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300"
                 >
                   {tag.name}
                 </span>
@@ -255,11 +279,11 @@ export default async function GamePage({
             <h2 className="text-2xl font-bold">Description</h2>
 
             {game.description ? (
-              <p className="mt-3 leading-7 text-gray-700">
+              <p className="mt-3 whitespace-pre-line leading-7 text-slate-300">
                 {game.description}
               </p>
             ) : (
-              <p className="mt-3 text-gray-600">
+              <p className="mt-3 text-slate-500">
                 Aucune description n’est encore renseignée pour ce jeu.
               </p>
             )}
@@ -268,16 +292,62 @@ export default async function GamePage({
       </section>
 
       <section className="mt-12">
-        <h2 className="text-2xl font-bold">Sorties référencées</h2>
+        <h2 className="text-2xl font-bold">Versions disponibles</h2>
+        <p className="mt-2 text-slate-400">
+          Supports et régions proposés lors de l’ajout à une collection.
+        </p>
 
-        {releases.length === 0 ? (
-          <div className="mt-4 rounded-xl border bg-gray-50 p-6 text-gray-600">
-            Aucune sortie n’est encore renseignée pour ce jeu.
+        {versions.length === 0 ? (
+          <div className="jrpg-card mt-4 p-6 text-slate-400">
+            Aucune version n’est encore renseignée pour ce jeu.
           </div>
         ) : (
-          <div className="mt-4 overflow-x-auto rounded-xl border">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50">
+          <div className="jrpg-card mt-4 overflow-x-auto">
+            <table className="w-full min-w-[680px] text-left text-sm">
+              <thead className="border-b border-slate-700 bg-slate-900/60">
+                <tr>
+                  <th className="p-3">Plateforme</th>
+                  <th className="p-3">Région</th>
+                  <th className="p-3">Date d’origine</th>
+                  <th className="p-3">Format</th>
+                  <th className="p-3">Édition</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {versions.map((version) => (
+                  <tr key={version.id} className="border-b border-slate-800">
+                    <td className="p-3">
+                      {version.platform?.name ?? "Plateforme inconnue"}
+                    </td>
+                    <td className="p-3">{version.region}</td>
+                    <td className="p-3">
+                      {formatDate(version.release_date)}
+                    </td>
+                    <td className="p-3">
+                      {formatMedia(version.physical, version.digital)}
+                    </td>
+                    <td className="p-3">
+                      {version.edition_name ?? "Standard"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {releases.length > 0 && (
+        <section className="mt-12">
+          <h2 className="text-2xl font-bold">Calendrier des sorties</h2>
+          <p className="mt-2 text-slate-400">
+            Annonces et dates suivies dans la rubrique Sorties.
+          </p>
+
+          <div className="jrpg-card mt-4 overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="border-b border-slate-700 bg-slate-900/60">
                 <tr>
                   <th className="p-3">Plateforme</th>
                   <th className="p-3">Région</th>
@@ -290,24 +360,18 @@ export default async function GamePage({
 
               <tbody>
                 {releases.map((release) => (
-                  <tr key={release.id} className="border-t">
+                  <tr key={release.id} className="border-b border-slate-800">
                     <td className="p-3">
                       {release.platform?.name ?? "Plateforme inconnue"}
                     </td>
-
-                    <td className="p-3">{release.region ?? "Inconnue"}</td>
-
-                    <td className="p-3">{formatDate(release.release_date)}</td>
-
+                    <td className="p-3">{release.region}</td>
                     <td className="p-3">
-                      {formatReleaseFormat(
-                        release.physical,
-                        release.digital
-                      )}
+                      {formatDate(release.release_date)}
                     </td>
-
+                    <td className="p-3">
+                      {formatMedia(release.physical, release.digital)}
+                    </td>
                     <td className="p-3">{formatStatus(release.status)}</td>
-
                     <td className="p-3">
                       {release.edition_name ?? "Standard"}
                     </td>
@@ -316,8 +380,8 @@ export default async function GamePage({
               </tbody>
             </table>
           </div>
-        )}
-      </section>
+        </section>
+      )}
     </main>
   );
 }

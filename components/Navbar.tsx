@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import LogoutButton from "@/components/logout-button";
+import NavbarGameSearch from "@/components/NavbarGameSearch";
 
 export default async function Navbar() {
   const supabase = await createClient();
@@ -10,13 +11,20 @@ export default async function Navbar() {
   } = await supabase.auth.getUser();
 
   return (
-    <header className="border-b border-slate-800 bg-slate-950 text-slate-100">
-      <nav className="mx-auto flex max-w-[1500px] items-center justify-between gap-4 px-8 py-4">
-        <Link href="/" className="text-xl font-bold tracking-tight text-white">
+    <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/95 text-slate-100 backdrop-blur">
+      <nav className="mx-auto flex max-w-[1500px] items-center gap-6 px-8 py-3">
+        <Link
+          href="/"
+          className="shrink-0 text-xl font-bold tracking-tight text-white"
+        >
           JRPG Vault
         </Link>
 
-        <div className="flex flex-wrap items-center justify-end gap-4 text-sm">
+        <div className="hidden w-[320px] shrink-0 lg:block">
+          <NavbarGameSearch />
+        </div>
+
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-4 text-sm">
           <Link href="/games" className="text-slate-300 hover:text-white">
             Catalogue
           </Link>
@@ -33,16 +41,8 @@ export default async function Navbar() {
             Actualités
           </Link>
 
-          <Link href="/about" className="text-slate-300 hover:text-white">
-            À propos
-          </Link>
-
           {user ? (
             <>
-              <Link href="/followed" className="text-slate-300 hover:text-white">
-                Suivis
-              </Link>
-
               <Link href="/account" className="text-slate-300 hover:text-white">
                 Compte
               </Link>
@@ -59,6 +59,10 @@ export default async function Navbar() {
           )}
         </div>
       </nav>
+
+      <div className="border-t border-slate-900 px-4 py-3 lg:hidden">
+        <NavbarGameSearch />
+      </div>
     </header>
   );
 }

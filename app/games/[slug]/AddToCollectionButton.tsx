@@ -1,16 +1,35 @@
 "use client";
 
 import { createClient } from "@/utils/supabase/client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-type Platform = {
+type Region = "PAL" | "US" | "JAP" | "ASIA" | "WORLD";
+
+type PlatformRelation = {
   id: number;
   name: string;
+  is_legacy: boolean;
+  display_order: number;
+};
+
+type RawGamePlatform = {
+  platform_id: number;
+  region: Region;
+  physical: boolean | null;
+  digital: boolean | null;
+  platforms: PlatformRelation | PlatformRelation[] | null;
+};
+
+type AvailableVersion = {
+  platform: PlatformRelation;
+  region: Region;
+  physical: boolean;
+  digital: boolean;
 };
 
 const statuses = [
   { value: "owned", label: "Possédé" },
-  { value: "backlog", label: "À faire" },
+  { value: "backlog", label: "Backlog" },
   { value: "playing", label: "En cours" },
   { value: "completed", label: "Terminé" },
   { value: "wishlist", label: "Wishlist" },
@@ -18,54 +37,219 @@ const statuses = [
   { value: "abandoned", label: "Abandonné" },
 ] as const;
 
-const formats = [
-  { value: "physical", label: "Physique" },
-  { value: "digital", label: "Numérique" },
-  { value: "both", label: "Les deux" },
-] as const;
+function normalizeRelation<T>(value: T | T[] | null): T | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
 
-const regions = [
-  { value: "PAL", label: "PAL" },
-  { value: "US", label: "US" },
-  { value: "JAP", label: "JAP" },
-  { value: "ASIA", label: "ASIA" },
-  { value: "WORLD", label: "WORLD" },
-] as const;
+  return value;
+}
 
-export default function AddToCollectionButton({ gameId }: { gameId: number }) {
-  const supabase = createClient();
+function comparePlatforms(a: PlatformRelation, b: PlatformRelation) {
+  if (a.is_legacy !== b.is_legacy) {
+    return Number(a.is_legacy) - Number(b.is_legacy);
+  }
 
-  const [platforms, setPlatforms] = useState<Platform[]>([]);
+  return (
+    a.display_order - b.display_order ||
+    a.name.localeCompare(b.name, "fr")
+  );
+}
+
+export default function AddToCollectionButton({
+  gameId,
+}: {
+  gameId: number;
+}) {
+  const supabase = useMemo(() => createClient(), []);
+
+  const [availableVersions, setAvailableVersions] = useState<
+    AvailableVersion[]
+  >([]);
   const [platformId, setPlatformId] = useState("");
   const [format, setFormat] = useState("physical");
-  const [region, setRegion] = useState("PAL");
+  const [region, setRegion] = useState<Region | "">("");
   const [status, setStatus] = useState("owned");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingPlatforms, setIsLoadingPlatforms] = useState(true);
 
   useEffect(() => {
     async function loadPlatforms() {
+      setIsLoadingPlatforms(true);
+
       const { data, error } = await supabase
-        .from("platforms")
-        .select("id, name")
-        .order("id");
+        .from("game_platforms")
+        .select(
+          `
+            platform_id,
+            region,
+            physical,
+            digital,
+            platforms (
+              id,
+              name,
+              is_legacy,
+              display_order
+            )
+          `,
+        )
+        .eq("game_id", gameId);
 
       if (error) {
         setMessage(`Erreur plateformes : ${error.message}`);
+        setIsLoadingPlatforms(false);
         return;
       }
 
-      setPlatforms(data ?? []);
+      const versions = ((data ?? []) as RawGamePlatform[])
+        .map((gamePlatform) => {
+          const platform = normalizeRelation(gamePlatform.platforms);
 
-      if (data && data.length > 0) {
-        setPlatformId(String(data[0].id));
+          if (!platform) {
+            return null;
+          }
+
+          return {
+            platform,
+            region: gamePlatform.region,
+            physical: Boolean(gamePlatform.physical),
+            digital: Boolean(gamePlatform.digital),
+          };
+        })
+        .filter(
+          (version): version is AvailableVersion => version !== null,
+        );
+
+      setAvailableVersions(versions);
+
+      if (versions.length > 0) {
+        const sortedPlatforms = Array.from(
+          new Map(
+            versions.map((version) => [
+              version.platform.id,
+              version.platform,
+            ]),
+          ).values(),
+        ).sort(comparePlatforms);
+
+        const firstPlatform = sortedPlatforms[0];
+        const firstVersion = versions.find(
+          (version) => version.platform.id === firstPlatform.id,
+        );
+
+        setPlatformId(String(firstPlatform.id));
+        setRegion(firstVersion?.region ?? "WORLD");
+
+        if (firstVersion?.physical) {
+          setFormat("physical");
+        } else if (firstVersion?.digital) {
+          setFormat("digital");
+        }
       }
+
+      setIsLoadingPlatforms(false);
     }
 
     loadPlatforms();
-  }, [supabase]);
+  }, [gameId, supabase]);
 
-  async function addToCollection(event: React.FormEvent<HTMLFormElement>) {
+  const platforms = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          availableVersions.map((version) => [
+            version.platform.id,
+            version.platform,
+          ]),
+        ).values(),
+      ).sort(comparePlatforms),
+    [availableVersions],
+  );
+
+  const regions = useMemo<Region[]>(
+    () =>
+      Array.from(
+        new Set(
+          availableVersions
+            .filter(
+              (version) =>
+                version.platform.id === Number(platformId),
+            )
+            .map((version) => version.region),
+        ),
+      ),
+    [availableVersions, platformId],
+  );
+
+  const selectedVersion = availableVersions.find(
+    (version) =>
+      version.platform.id === Number(platformId) &&
+      version.region === region,
+  );
+
+  const formats = useMemo(() => {
+    if (!selectedVersion) {
+      return [];
+    }
+
+    const result: { value: string; label: string }[] = [];
+
+    if (selectedVersion.physical) {
+      result.push({ value: "physical", label: "Physique" });
+    }
+
+    if (selectedVersion.digital) {
+      result.push({ value: "digital", label: "Numérique" });
+    }
+
+    if (selectedVersion.physical && selectedVersion.digital) {
+      result.push({ value: "both", label: "Les deux" });
+    }
+
+    if (result.length === 0) {
+      result.push(
+        { value: "physical", label: "Physique" },
+        { value: "digital", label: "Numérique" },
+      );
+    }
+
+    return result;
+  }, [selectedVersion]);
+
+  useEffect(() => {
+    if (regions.length > 0 && !regions.includes(region as Region)) {
+      setRegion(regions[0]);
+    }
+  }, [region, regions]);
+
+  useEffect(() => {
+    if (formats.length > 0 && !formats.some((item) => item.value === format)) {
+      setFormat(formats[0].value);
+    }
+  }, [format, formats]);
+
+  function handlePlatformChange(value: string) {
+    setPlatformId(value);
+
+    const firstVersion = availableVersions.find(
+      (version) => version.platform.id === Number(value),
+    );
+
+    if (firstVersion) {
+      setRegion(firstVersion.region);
+
+      if (firstVersion.physical) {
+        setFormat("physical");
+      } else if (firstVersion.digital) {
+        setFormat("digital");
+      }
+    }
+  }
+
+  async function addToCollection(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
     setMessage("");
     setIsLoading(true);
@@ -78,8 +262,8 @@ export default function AddToCollectionButton({ gameId }: { gameId: number }) {
       return;
     }
 
-    if (!platformId) {
-      setMessage("Choisis une plateforme.");
+    if (!platformId || !region) {
+      setMessage("Aucun support n’est disponible pour ce jeu.");
       setIsLoading(false);
       return;
     }
@@ -96,7 +280,7 @@ export default function AddToCollectionButton({ gameId }: { gameId: number }) {
     if (error) {
       if (error.code === "23505") {
         setMessage(
-          "Ce jeu existe déjà dans ta collection avec cette plateforme, région et format."
+          "Ce jeu existe déjà dans ta collection avec cette plateforme, région et format.",
         );
       } else {
         setMessage(`Erreur : ${error.message}`);
@@ -110,16 +294,37 @@ export default function AddToCollectionButton({ gameId }: { gameId: number }) {
     setIsLoading(false);
   }
 
+  if (isLoadingPlatforms) {
+    return (
+      <div className="jrpg-card p-4 text-sm text-slate-400">
+        Chargement des supports…
+      </div>
+    );
+  }
+
+  if (platforms.length === 0) {
+    return (
+      <div className="jrpg-card p-4">
+        <h2 className="text-xl font-semibold">Ajouter à ma collection</h2>
+        <p className="mt-3 text-sm text-amber-300">
+          Aucun support n’est encore associé à ce jeu.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={addToCollection} className="jrpg-card p-4">
       <h2 className="text-xl font-semibold">Ajouter à ma collection</h2>
 
       <div className="mt-4 grid gap-4">
         <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-200">Plateforme</span>
+          <span className="text-sm font-medium text-slate-200">
+            Plateforme
+          </span>
           <select
             value={platformId}
-            onChange={(event) => setPlatformId(event.target.value)}
+            onChange={(event) => handlePlatformChange(event.target.value)}
             className="rounded border px-3 py-2"
           >
             {platforms.map((platform) => (
@@ -149,12 +354,12 @@ export default function AddToCollectionButton({ gameId }: { gameId: number }) {
           <span className="text-sm font-medium text-slate-200">Région</span>
           <select
             value={region}
-            onChange={(event) => setRegion(event.target.value)}
+            onChange={(event) => setRegion(event.target.value as Region)}
             className="rounded border px-3 py-2"
           >
             {regions.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
+              <option key={item} value={item}>
+                {item}
               </option>
             ))}
           </select>
@@ -178,7 +383,7 @@ export default function AddToCollectionButton({ gameId }: { gameId: number }) {
 
       <button
         type="submit"
-        disabled={isLoading || platforms.length === 0}
+        disabled={isLoading}
         className="jrpg-button-primary mt-4 px-4 py-2 disabled:opacity-50"
       >
         {isLoading ? "Ajout..." : "Ajouter à ma collection"}

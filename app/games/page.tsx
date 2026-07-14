@@ -26,12 +26,15 @@ type TagRelation = {
 type PlatformRelation = {
   id: number;
   name: string;
+  slug: string;
   manufacturer: string | null;
+  generation: number | null;
+  is_legacy: boolean;
+  display_order: number;
 };
 
-type ReleaseRelation = {
+type GamePlatformRelation = {
   id: number;
-  release_date: string | null;
   platforms: PlatformRelation | PlatformRelation[] | null;
 };
 
@@ -45,7 +48,7 @@ type RawGame = {
   developer: string | null;
   publisher: string | null;
   game_tags: TagRelation[] | null;
-  game_releases: ReleaseRelation[] | null;
+  game_platforms: GamePlatformRelation[] | null;
 };
 
 type CollectionRow = {
@@ -59,6 +62,18 @@ function normalizeArray<T>(relation: T | T[] | null): T[] {
   }
 
   return Array.isArray(relation) ? relation : [relation];
+}
+
+function comparePlatforms(a: PlatformRelation, b: PlatformRelation) {
+  if (a.is_legacy !== b.is_legacy) {
+    return Number(a.is_legacy) - Number(b.is_legacy);
+  }
+
+  if (a.display_order !== b.display_order) {
+    return a.display_order - b.display_order;
+  }
+
+  return a.name.localeCompare(b.name, "fr");
 }
 
 export default async function GamesPage() {
@@ -86,16 +101,19 @@ export default async function GamesPage() {
           name
         )
       ),
-      game_releases (
+      game_platforms (
         id,
-        release_date,
         platforms (
           id,
           name,
-          manufacturer
+          slug,
+          manufacturer,
+          generation,
+          is_legacy,
+          display_order
         )
       )
-    `
+    `,
     )
     .order("title");
 
@@ -139,8 +157,8 @@ export default async function GamesPage() {
 
     const platformMap = new Map<number, PlatformRelation>();
 
-    game.game_releases?.forEach((release) => {
-      normalizeArray(release.platforms).forEach((platform) => {
+    game.game_platforms?.forEach((gamePlatform) => {
+      normalizeArray(gamePlatform.platforms).forEach((platform) => {
         platformMap.set(platform.id, platform);
       });
     });
@@ -155,9 +173,7 @@ export default async function GamesPage() {
       developer: game.developer,
       publisher: game.publisher,
       tags,
-      platforms: Array.from(platformMap.values()).sort((a, b) =>
-        a.name.localeCompare(b.name)
-      ),
+      platforms: Array.from(platformMap.values()).sort(comparePlatforms),
       collection_statuses: collectionStatusesByGameId[game.id] ?? [],
     };
   });
@@ -170,8 +186,8 @@ export default async function GamesPage() {
         <h1 className="mt-4 text-4xl font-bold">Catalogue JRPG</h1>
 
         <p className="mt-3 text-slate-400">
-          Recherche un jeu, filtre par plateforme, genre ou statut de collection,
-          puis trouve rapidement le prochain JRPG à ajouter à ton Vault.
+          Recherche un jeu, filtre les supports actuels ou rétro, puis trouve
+          rapidement le prochain JRPG à ajouter à ton Vault.
         </p>
       </div>
 

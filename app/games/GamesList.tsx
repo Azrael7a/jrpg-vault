@@ -12,6 +12,16 @@ type CollectionStatus =
   | "preordered"
   | "abandoned";
 
+type Platform = {
+  id: number;
+  name: string;
+  slug: string;
+  manufacturer: string | null;
+  generation: number | null;
+  is_legacy: boolean;
+  display_order: number;
+};
+
 type Game = {
   id: number;
   title: string;
@@ -25,11 +35,7 @@ type Game = {
     id: number;
     name: string;
   }[];
-  platforms: {
-    id: number;
-    name: string;
-    manufacturer: string | null;
-  }[];
+  platforms: Platform[];
   collection_statuses: CollectionStatus[];
 };
 
@@ -90,10 +96,16 @@ function getStatusClass(status: CollectionStatus) {
   }
 }
 
-function uniqueSorted(values: string[]) {
-  return Array.from(new Set(values.filter(Boolean))).sort((a, b) =>
-    a.localeCompare(b)
-  );
+function comparePlatforms(a: Platform, b: Platform) {
+  if (a.is_legacy !== b.is_legacy) {
+    return Number(a.is_legacy) - Number(b.is_legacy);
+  }
+
+  if (a.display_order !== b.display_order) {
+    return a.display_order - b.display_order;
+  }
+
+  return a.name.localeCompare(b.name, "fr");
 }
 
 export default function GamesList({ games }: { games: Game[] }) {
@@ -104,13 +116,33 @@ export default function GamesList({ games }: { games: Game[] }) {
   const [sortOption, setSortOption] = useState<SortOption>("title_asc");
 
   const platformOptions = useMemo(() => {
-    return uniqueSorted(
-      games.flatMap((game) => game.platforms.map((platform) => platform.name))
-    );
+    const platformMap = new Map<number, Platform>();
+
+    games.forEach((game) => {
+      game.platforms.forEach((platform) => {
+        platformMap.set(platform.id, platform);
+      });
+    });
+
+    return Array.from(platformMap.values()).sort(comparePlatforms);
   }, [games]);
 
+  const currentPlatforms = useMemo(
+    () => platformOptions.filter((platform) => !platform.is_legacy),
+    [platformOptions],
+  );
+
+  const legacyPlatforms = useMemo(
+    () => platformOptions.filter((platform) => platform.is_legacy),
+    [platformOptions],
+  );
+
   const genreOptions = useMemo(() => {
-    return uniqueSorted(games.flatMap((game) => game.tags.map((tag) => tag.name)));
+    return Array.from(
+      new Set(
+        games.flatMap((game) => game.tags.map((tag) => tag.name)).filter(Boolean),
+      ),
+    ).sort((a, b) => a.localeCompare(b, "fr"));
   }, [games]);
 
   const filteredGames = useMemo(() => {
@@ -124,7 +156,12 @@ export default function GamesList({ games }: { games: Game[] }) {
         game.publisher,
         game.release_year,
         ...game.tags.map((tag) => tag.name),
-        ...game.platforms.map((platform) => platform.name),
+        ...game.platforms.flatMap((platform) => [
+          platform.name,
+          platform.manufacturer,
+          platform.generation ? `génération ${platform.generation}` : null,
+          platform.is_legacy ? "rétro ancien" : "actuel moderne",
+        ]),
       ]
         .filter(Boolean)
         .join(" ")
@@ -132,9 +169,23 @@ export default function GamesList({ games }: { games: Game[] }) {
 
       const matchesSearch = !query || searchableText.includes(query);
 
-      const matchesPlatform =
-        platformFilter === "all" ||
-        game.platforms.some((platform) => platform.name === platformFilter);
+      const matchesPlatform = (() => {
+        if (platformFilter === "all") {
+          return true;
+        }
+
+        if (platformFilter === "group:current") {
+          return game.platforms.some((platform) => !platform.is_legacy);
+        }
+
+        if (platformFilter === "group:legacy") {
+          return game.platforms.some((platform) => platform.is_legacy);
+        }
+
+        return game.platforms.some(
+          (platform) => String(platform.id) === platformFilter,
+        );
+      })();
 
       const matchesGenre =
         genreFilter === "all" ||
@@ -154,16 +205,16 @@ export default function GamesList({ games }: { games: Game[] }) {
     return [...result].sort((a, b) => {
       switch (sortOption) {
         case "title_desc":
-          return b.title.localeCompare(a.title);
+          return b.title.localeCompare(a.title, "fr");
         case "release_desc":
           return (b.release_year ?? 0) - (a.release_year ?? 0);
         case "release_asc":
           return (a.release_year ?? 9999) - (b.release_year ?? 9999);
         case "series_asc":
-          return (a.series ?? "zzzz").localeCompare(b.series ?? "zzzz");
+          return (a.series ?? "zzzz").localeCompare(b.series ?? "zzzz", "fr");
         case "title_asc":
         default:
-          return a.title.localeCompare(b.title);
+          return a.title.localeCompare(b.title, "fr");
       }
     });
   }, [games, genreFilter, platformFilter, search, sortOption, statusFilter]);
@@ -189,8 +240,7 @@ export default function GamesList({ games }: { games: Game[] }) {
         <h2 className="text-2xl font-bold">Catalogue vide</h2>
 
         <p className="mx-auto mt-3 max-w-xl text-slate-400">
-          Aucun JRPG n’a encore été ajouté au catalogue. Ajoute des jeux depuis
-          Supabase pour commencer à construire ta base.
+          Aucun JRPG n’a encore été ajouté au catalogue.
         </p>
       </div>
     );
@@ -209,7 +259,7 @@ export default function GamesList({ games }: { games: Game[] }) {
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Final Fantasy, Xenoblade, Fire Emblem, Atlus, Falcom..."
+              placeholder="Final Fantasy, Xenoblade, PlayStation, rétro..."
               className="rounded-xl border px-4 py-3"
             />
           </label>
@@ -225,11 +275,28 @@ export default function GamesList({ games }: { games: Game[] }) {
               className="rounded-xl border px-4 py-3"
             >
               <option value="all">Toutes les plateformes</option>
-              {platformOptions.map((platform) => (
-                <option key={platform} value={platform}>
-                  {platform}
-                </option>
-              ))}
+
+              {currentPlatforms.length > 0 && (
+                <optgroup label="Supports actuels">
+                  <option value="group:current">Tous les supports actuels</option>
+                  {currentPlatforms.map((platform) => (
+                    <option key={platform.id} value={platform.id}>
+                      {platform.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+
+              {legacyPlatforms.length > 0 && (
+                <optgroup label="Supports rétro">
+                  <option value="group:legacy">Tous les supports rétro</option>
+                  {legacyPlatforms.map((platform) => (
+                    <option key={platform.id} value={platform.id}>
+                      {platform.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </label>
 
@@ -380,7 +447,12 @@ export default function GamesList({ games }: { games: Game[] }) {
                   {game.platforms.slice(0, 3).map((platform) => (
                     <span
                       key={platform.id}
-                      className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300"
+                      title={platform.is_legacy ? "Support rétro" : "Support actuel"}
+                      className={
+                        platform.is_legacy
+                          ? "rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-200"
+                          : "rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300"
+                      }
                     >
                       {platform.name}
                     </span>

@@ -60,6 +60,14 @@ type RawCollectionItem = {
   platforms: PlatformRelation | PlatformRelation[] | null;
 };
 
+type CollectionItem = {
+  id: number;
+  status: CollectionStatus;
+  created_at: string | null;
+  game: GameRelation | null;
+  platform: PlatformRelation | null;
+};
+
 type FollowedGameRow = {
   game_id: number | null;
 };
@@ -141,10 +149,11 @@ export default async function HomePage() {
     )
     .not("release_date", "is", null)
     .gte("release_date", today)
+    .or("status.is.null,status.neq.released")
     .order("release_date", {
       ascending: true,
     })
-    .limit(24);
+    .limit(48);
 
   if (releasesError) {
     console.error("Erreur pendant le chargement des sorties :", releasesError);
@@ -171,7 +180,12 @@ export default async function HomePage() {
         game: GameRelation;
         platform: PlatformRelation;
       } =>
-        Boolean(release.release_date && release.game && release.platform),
+        Boolean(
+          release.release_date &&
+            release.game &&
+            release.platform &&
+            release.game_id,
+        ),
     );
 
   const stats: Record<CollectionStatus, number> = {
@@ -185,15 +199,7 @@ export default async function HomePage() {
   };
 
   let total = 0;
-
-  let latestItem: {
-    id: number;
-    status: CollectionStatus;
-    created_at: string | null;
-    game: GameRelation | null;
-    platform: PlatformRelation | null;
-  } | null = null;
-
+  let latestItems: CollectionItem[] = [];
   let followedGameIds: number[] = [];
 
   if (user) {
@@ -243,7 +249,7 @@ export default async function HomePage() {
       );
     }
 
-    const collectionItems = (
+    const collectionItems: CollectionItem[] = (
       (collectionResult.data ?? []) as unknown as RawCollectionItem[]
     ).map((item) => ({
       id: item.id,
@@ -261,7 +267,7 @@ export default async function HomePage() {
       }
     }
 
-    latestItem = collectionItems[0] ?? null;
+    latestItems = collectionItems.slice(0, 3);
 
     followedGameIds = (
       (followedGamesResult.data ?? []) as unknown as FollowedGameRow[]
@@ -282,7 +288,7 @@ export default async function HomePage() {
             isLoggedIn={Boolean(user)}
             stats={stats}
             total={total}
-            latestItem={latestItem}
+            latestItems={latestItems}
           />
         </section>
 

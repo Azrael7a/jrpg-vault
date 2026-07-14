@@ -26,7 +26,7 @@ type LatestItem = {
   status: CollectionStatus;
   game: CollectionGame | null;
   platform: CollectionPlatform | null;
-} | null;
+};
 
 function getStatusLabel(status: CollectionStatus) {
   switch (status) {
@@ -51,32 +51,32 @@ export default function HomeVaultSummary({
   isLoggedIn,
   total,
   stats,
-  latestItem,
+  latestItems = [],
 }: {
   isLoggedIn: boolean;
   total: number;
   stats: Record<CollectionStatus, number>;
-  latestItem: LatestItem;
+  latestItems?: LatestItem[];
 }) {
   if (!isLoggedIn) {
     return (
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-xl">
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/60 px-6 py-5 shadow-xl">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-purple-400">
+            <p className="text-xs font-semibold uppercase tracking-wide text-purple-400">
               Ma collection
             </p>
 
             <h2 className="mt-1 text-2xl font-bold text-white">Mon Vault</h2>
 
-            <p className="mt-2 text-slate-300">
+            <p className="mt-2 text-sm text-slate-400">
               Connecte-toi pour voir le résumé de ta collection JRPG.
             </p>
           </div>
 
           <Link
             href="/auth/login"
-            className="rounded bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-500"
+            className="rounded border border-purple-500 px-4 py-2 text-sm font-medium text-purple-200 hover:bg-purple-950"
           >
             Se connecter
           </Link>
@@ -85,94 +85,109 @@ export default function HomeVaultSummary({
     );
   }
 
-  const statCards = [
-    { label: "Total", value: total, accent: "text-white" },
-    { label: "Terminés", value: stats.completed, accent: "text-green-400" },
-    { label: "En cours", value: stats.playing, accent: "text-sky-400" },
-    { label: "Backlog", value: stats.backlog, accent: "text-yellow-400" },
-    { label: "Wishlist", value: stats.wishlist, accent: "text-purple-400" },
-    {
-      label: "Précommandés",
-      value: stats.preordered,
-      accent: "text-pink-400",
-    },
+  const statItems = [
+    { label: "Total", value: total },
+    { label: "Terminés", value: stats.completed },
+    { label: "En cours", value: stats.playing },
+    { label: "Backlog", value: stats.backlog },
+    { label: "Wishlist", value: stats.wishlist },
+    { label: "Précommandés", value: stats.preordered },
   ];
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-xl">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-purple-400">
-            Ma collection
-          </p>
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 px-6 py-5 shadow-xl">
+      <div className="grid gap-8 xl:grid-cols-[1fr_520px] xl:items-start">
+        <div className="min-w-0">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-purple-400">
+                Ma collection
+              </p>
 
-          <div className="flex flex-wrap items-end gap-3">
-            <h2 className="mt-1 text-2xl font-bold text-white">Mon Vault</h2>
+              <h2 className="mt-1 text-2xl font-bold text-white">Mon Vault</h2>
+            </div>
 
             <p className="pb-1 text-sm text-slate-400">
               Résumé de ta collection JRPG personnelle.
             </p>
           </div>
-        </div>
 
-        <Link href="/collection" className="text-sm text-purple-300 underline">
-          Voir ma collection
-        </Link>
-      </div>
+          <div className="mt-6 flex flex-wrap gap-x-7 gap-y-3">
+            {statItems.map((stat) => (
+              <div key={stat.label} className="flex items-baseline gap-2">
+                <span className="text-xl font-bold text-white">
+                  {stat.value}
+                </span>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_260px]">
-        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {statCards.map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-xl border border-slate-800 bg-slate-950 p-4"
-            >
-              <p className={`text-3xl font-bold ${stat.accent}`}>
-                {stat.value}
-              </p>
+                <span className="text-sm text-slate-400">{stat.label}</span>
+              </div>
+            ))}
+          </div>
 
-              <p className="mt-1 text-sm text-slate-400">{stat.label}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-          <p className="text-sm font-semibold text-white">Dernier ajout</p>
-
-          {latestItem?.game ? (
+          <div className="mt-6">
             <Link
-              href={`/games/${latestItem.game.slug}`}
-              className="mt-3 flex gap-3 hover:opacity-90"
+              href="/collection"
+              className="text-sm text-purple-300 underline underline-offset-4"
             >
-              <div className="h-16 w-12 shrink-0 overflow-hidden rounded bg-slate-800">
-                {latestItem.game.cover_url ? (
-                  <img
-                    src={latestItem.game.cover_url}
-                    alt={`Jaquette de ${latestItem.game.title}`}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-[10px] text-slate-500">
-                    JRPG
-                  </div>
-                )}
-              </div>
-
-              <div className="min-w-0">
-                <p className="line-clamp-2 font-semibold text-white">
-                  {latestItem.game.title}
-                </p>
-
-                <p className="mt-1 text-sm text-slate-400">
-                  {latestItem.platform?.name ?? "Plateforme inconnue"} ·{" "}
-                  {getStatusLabel(latestItem.status)}
-                </p>
-              </div>
+              Voir ma collection
             </Link>
-          ) : (
-            <p className="mt-3 text-sm text-slate-400">
-              Aucun jeu ajouté pour le moment.
+          </div>
+        </div>
+
+        <div className="border-slate-800 xl:border-l xl:pl-6">
+          <div>
+            <p className="text-sm font-semibold text-white">Derniers ajouts</p>
+
+            <p className="mt-1 text-xs text-slate-500">
+              Les derniers jeux ajoutés à ton Vault.
             </p>
+          </div>
+
+          {latestItems.length > 0 ? (
+            <div className="mt-4 grid gap-3">
+              {latestItems.map((item) => {
+                if (!item.game) {
+                  return null;
+                }
+
+                return (
+                  <Link
+                    key={item.id}
+                    href={`/games/${item.game.slug}`}
+                    className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/70 p-3 hover:border-purple-500"
+                  >
+                    <div className="h-14 w-10 shrink-0 overflow-hidden rounded bg-slate-800">
+                      {item.game.cover_url ? (
+                        <img
+                          src={item.game.cover_url}
+                          alt={`Jaquette de ${item.game.title}`}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[10px] text-slate-500">
+                          JRPG
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="line-clamp-1 font-semibold text-white">
+                        {item.game.title}
+                      </p>
+
+                      <p className="mt-1 text-sm text-slate-400">
+                        {item.platform?.name ?? "Plateforme inconnue"} ·{" "}
+                        {getStatusLabel(item.status)}
+                      </p>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-sm text-slate-400">
+              Aucun jeu ajouté pour le moment.
+            </div>
           )}
         </div>
       </div>
