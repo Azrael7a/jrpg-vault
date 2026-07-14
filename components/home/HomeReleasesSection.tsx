@@ -9,6 +9,9 @@ type HomeRelease = {
   release_date: string | null;
   edition_name: string | null;
   region: string | null;
+  physical?: boolean | null;
+  digital?: boolean | null;
+  status?: string | null;
   game: {
     id: number;
     title: string;
@@ -18,10 +21,36 @@ type HomeRelease = {
   platform: {
     id: number;
     name: string;
+    manufacturer?: string | null;
   } | null;
 };
 
-const platformFilters = ["Tous", "PS4", "PS5", "Switch", "Switch 2", "PC"];
+type GroupedRelease = {
+  game_id: number;
+  game: {
+    id: number;
+    title: string;
+    slug: string;
+    cover_url: string | null;
+  };
+  release_date: string | null;
+  platforms: {
+    id: number;
+    name: string;
+    manufacturer?: string | null;
+  }[];
+  editionNames: string[];
+};
+
+const platformFilters = [
+  "Tous",
+  "PS4",
+  "PS5",
+  "Switch",
+  "Switch 2",
+  "Xbox",
+  "PC",
+];
 
 function formatDate(date: string | null) {
   if (!date) {
@@ -29,6 +58,173 @@ function formatDate(date: string | null) {
   }
 
   return new Date(date).toLocaleDateString("fr-FR");
+}
+
+function normalizePlatformName(name: string) {
+  return name.toLowerCase().trim();
+}
+
+function isPlayStationPlatform(name: string) {
+  const normalizedName = normalizePlatformName(name);
+
+  return (
+    normalizedName.includes("ps4") ||
+    normalizedName.includes("ps5") ||
+    normalizedName.includes("playstation")
+  );
+}
+
+function isSwitchPlatform(name: string) {
+  const normalizedName = normalizePlatformName(name);
+
+  return (
+    normalizedName === "switch" ||
+    normalizedName === "nintendo switch" ||
+    normalizedName.includes("switch 2") ||
+    normalizedName.includes("switch2")
+  );
+}
+
+function isXboxPlatform(name: string) {
+  const normalizedName = normalizePlatformName(name);
+
+  return normalizedName.includes("xbox");
+}
+
+function isPcPlatform(name: string) {
+  const normalizedName = normalizePlatformName(name);
+
+  return (
+    normalizedName === "pc" ||
+    normalizedName.includes("windows") ||
+    normalizedName.includes("steam")
+  );
+}
+
+function platformMatchesFilter(platformName: string, filter: string) {
+  const normalizedName = normalizePlatformName(platformName);
+
+  switch (filter) {
+    case "Tous":
+      return true;
+
+    case "PS4":
+      return (
+        normalizedName.includes("ps4") ||
+        normalizedName.includes("playstation 4")
+      );
+
+    case "PS5":
+      return (
+        normalizedName.includes("ps5") ||
+        normalizedName.includes("playstation 5")
+      );
+
+    case "Switch":
+      return (
+        normalizedName === "switch" ||
+        normalizedName === "nintendo switch"
+      );
+
+    case "Switch 2":
+      return (
+        normalizedName.includes("switch 2") ||
+        normalizedName.includes("switch2")
+      );
+
+    case "Xbox":
+      return isXboxPlatform(platformName);
+
+    case "PC":
+      return isPcPlatform(platformName);
+
+    default:
+      return normalizedName === normalizePlatformName(filter);
+  }
+}
+
+function getPlatformTagClass(platformName: string) {
+  if (isSwitchPlatform(platformName)) {
+    return "border-red-500/40 bg-red-950/70 text-red-200";
+  }
+
+  if (isPlayStationPlatform(platformName)) {
+    return "border-[#0070CC] bg-[#0070CC] text-white";
+  }
+
+  if (isXboxPlatform(platformName)) {
+    return "border-[#107C10] bg-[#107C10] text-white";
+  }
+
+  if (isPcPlatform(platformName)) {
+    return "border-black bg-black text-white";
+  }
+
+  return "border-slate-600 bg-slate-800 text-slate-200";
+}
+
+function getFilterButtonClass(filter: string, currentFilter: string) {
+  const isActive = filter === currentFilter;
+
+  if (isActive) {
+    return "rounded border border-purple-500 bg-purple-600 px-3 py-2 text-sm font-medium text-white";
+  }
+
+  return "rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800";
+}
+
+function groupReleasesByGame(releases: HomeRelease[]) {
+  const groupedReleases = new Map<number, GroupedRelease>();
+
+  for (const release of releases) {
+    if (!release.game || !release.platform) {
+      continue;
+    }
+
+    const existingRelease = groupedReleases.get(release.game_id);
+
+    if (!existingRelease) {
+      groupedReleases.set(release.game_id, {
+        game_id: release.game_id,
+        game: release.game,
+        release_date: release.release_date,
+        platforms: [release.platform],
+        editionNames: release.edition_name ? [release.edition_name] : [],
+      });
+
+      continue;
+    }
+
+    const platformAlreadyAdded = existingRelease.platforms.some(
+      (platform) => platform.id === release.platform?.id,
+    );
+
+    if (!platformAlreadyAdded) {
+      existingRelease.platforms.push(release.platform);
+    }
+
+    if (
+      release.edition_name &&
+      !existingRelease.editionNames.includes(release.edition_name)
+    ) {
+      existingRelease.editionNames.push(release.edition_name);
+    }
+
+    if (
+      release.release_date &&
+      (!existingRelease.release_date ||
+        release.release_date < existingRelease.release_date)
+    ) {
+      existingRelease.release_date = release.release_date;
+    }
+  }
+
+  return Array.from(groupedReleases.values()).sort((a, b) => {
+    const dateA = a.release_date ?? "9999-12-31";
+    const dateB = b.release_date ?? "9999-12-31";
+
+    return dateA.localeCompare(dateB);
+  });
 }
 
 export default function HomeReleasesSection({
@@ -44,17 +240,24 @@ export default function HomeReleasesSection({
   const [onlyFollowed, setOnlyFollowed] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
+  const groupedReleases = useMemo(() => {
+    return groupReleasesByGame(releases);
+  }, [releases]);
+
   const filteredReleases = useMemo(() => {
-    return releases.filter((release) => {
+    return groupedReleases.filter((release) => {
       const matchesPlatform =
-        platformFilter === "Tous" || release.platform?.name === platformFilter;
+        platformFilter === "Tous" ||
+        release.platforms.some((platform) =>
+          platformMatchesFilter(platform.name, platformFilter),
+        );
 
       const matchesFollowed =
         !onlyFollowed || followedGameIds.includes(release.game_id);
 
       return matchesPlatform && matchesFollowed;
     });
-  }, [releases, platformFilter, onlyFollowed, followedGameIds]);
+  }, [groupedReleases, platformFilter, onlyFollowed, followedGameIds]);
 
   function scrollReleases(direction: "left" | "right") {
     const container = scrollContainerRef.current;
@@ -89,11 +292,7 @@ export default function HomeReleasesSection({
                 key={platform}
                 type="button"
                 onClick={() => setPlatformFilter(platform)}
-                className={
-                  platformFilter === platform
-                    ? "rounded border border-purple-500 bg-purple-600 px-3 py-2 text-sm font-medium text-white"
-                    : "rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
-                }
+                className={getFilterButtonClass(platform, platformFilter)}
               >
                 {platform}
               </button>
@@ -143,46 +342,57 @@ export default function HomeReleasesSection({
             ) : (
               filteredReleases.map((release) => (
                 <Link
-                  key={release.id}
-                  href={
-                    release.game ? `/games/${release.game.slug}` : "/releases"
-                  }
+                  key={release.game_id}
+                  href={`/games/${release.game.slug}`}
                   className="w-72 shrink-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-950 hover:border-purple-500"
                 >
-                  <div className="aspect-[16/9] bg-slate-800">
-                    {release.game?.cover_url ? (
+                  <div className="relative aspect-[16/9] bg-slate-800">
+                    {release.game.cover_url ? (
                       <img
                         src={release.game.cover_url}
                         alt={`Jaquette de ${release.game.title}`}
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">
-                        Pas de jaquette
+                      <div className="flex h-full w-full items-center justify-center px-4 text-center text-lg font-bold text-purple-300">
+                        {release.game.title}
+                      </div>
+                    )}
+
+                    {followedGameIds.includes(release.game_id) && (
+                      <div className="absolute right-3 top-3 rounded-full border border-purple-400 bg-slate-950/90 px-2 py-1 text-xs text-purple-200">
+                        ★ Suivi
                       </div>
                     )}
                   </div>
 
                   <div className="p-4">
                     <h3 className="line-clamp-2 min-h-12 font-semibold text-white">
-                      {release.game?.title ?? "Jeu inconnu"}
+                      {release.game.title}
                     </h3>
 
-                    <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-                      <span className="text-slate-400">
-                        {formatDate(release.release_date)}
-                      </span>
+                    <p className="mt-3 text-sm text-slate-400">
+                      {formatDate(release.release_date)}
+                    </p>
 
-                      <span className="rounded bg-slate-800 px-2 py-1 text-xs text-purple-200">
-                        {release.platform?.name ?? "?"}
-                      </span>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {release.platforms.map((platform) => (
+                        <span
+                          key={platform.id}
+                          className={`rounded border px-2 py-1 text-xs font-medium ${getPlatformTagClass(
+                            platform.name,
+                          )}`}
+                        >
+                          {platform.name}
+                        </span>
+                      ))}
                     </div>
 
-                    {release.edition_name && (
-                      <p className="mt-2 text-xs text-slate-500">
-                        {release.edition_name}
-                      </p>
-                    )}
+                    <p className="mt-3 line-clamp-1 text-xs text-slate-500">
+                      {release.editionNames.length > 0
+                        ? release.editionNames.join(" · ")
+                        : "Édition standard"}
+                    </p>
                   </div>
                 </Link>
               ))

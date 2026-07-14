@@ -1,18 +1,14 @@
 import Link from "next/link";
 
-type NewsGame = {
-  title: string;
-  slug: string;
-  cover_url: string | null;
-} | null;
-
 type HomeNewsItem = {
   id: number;
   title: string;
   slug: string;
-  summary: string;
+  summary: string | null;
+  excerpt: string | null;
+  image_url: string | null;
+  category: string | null;
   published_at: string | null;
-  related_game: NewsGame;
 };
 
 function formatDate(date: string | null) {
@@ -23,28 +19,48 @@ function formatDate(date: string | null) {
   return new Date(date).toLocaleDateString("fr-FR");
 }
 
+function getNewsText(news: HomeNewsItem) {
+  return news.excerpt ?? news.summary ?? "Aucun résumé disponible.";
+}
+
+function getCategoryLabel(category: string | null) {
+  if (!category) {
+    return "News";
+  }
+
+  return category;
+}
+
 function NewsImage({
-  coverUrl,
+  imageUrl,
   title,
   compact = false,
 }: {
-  coverUrl: string | null | undefined;
+  imageUrl: string | null;
   title: string;
   compact?: boolean;
 }) {
-  if (coverUrl) {
+  if (imageUrl) {
     return (
       <img
-        src={coverUrl}
-        alt={`Image liée à ${title}`}
+        src={imageUrl}
+        alt={`Image de l'actualité ${title}`}
         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
       />
     );
   }
 
   return (
-    <div className="flex h-full w-full items-center justify-center bg-slate-800 text-slate-500">
-      <span className={compact ? "text-xs" : "text-sm"}>JRPG Vault</span>
+    <div className="flex h-full w-full items-center justify-center bg-slate-800 px-4 text-center">
+      <span
+        className={
+          compact
+            ? "text-sm font-semibold text-purple-300"
+            : "text-lg font-bold text-purple-300"
+        }
+      >
+        JRPG Vault
+      </span>
     </div>
   );
 }
@@ -84,7 +100,7 @@ export default function HomeLatestNews({ news }: { news: HomeNewsItem[] }) {
             className="group relative block min-h-[360px] overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 hover:border-purple-500"
           >
             <NewsImage
-              coverUrl={featuredNews.related_game?.cover_url}
+              imageUrl={featuredNews.image_url}
               title={featuredNews.title}
             />
 
@@ -93,7 +109,7 @@ export default function HomeLatestNews({ news }: { news: HomeNewsItem[] }) {
             <div className="absolute inset-x-0 bottom-0 p-5">
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <span className="rounded-full bg-purple-600 px-3 py-1 text-xs font-semibold uppercase text-white">
-                  News JRPG
+                  {getCategoryLabel(featuredNews.category)}
                 </span>
 
                 <span className="text-xs text-slate-300">
@@ -106,7 +122,7 @@ export default function HomeLatestNews({ news }: { news: HomeNewsItem[] }) {
               </h2>
 
               <p className="mt-2 line-clamp-2 max-w-3xl text-sm text-slate-300">
-                {featuredNews.summary}
+                {getNewsText(featuredNews)}
               </p>
             </div>
           </Link>
@@ -119,7 +135,7 @@ export default function HomeLatestNews({ news }: { news: HomeNewsItem[] }) {
                 className="group relative min-h-[170px] overflow-hidden rounded-xl border border-slate-800 bg-slate-950 hover:border-purple-500"
               >
                 <NewsImage
-                  coverUrl={item.related_game?.cover_url}
+                  imageUrl={item.image_url}
                   title={item.title}
                   compact
                 />
@@ -129,7 +145,7 @@ export default function HomeLatestNews({ news }: { news: HomeNewsItem[] }) {
                 <div className="absolute inset-x-0 bottom-0 p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <span className="rounded-full bg-blue-600 px-2 py-1 text-[10px] font-semibold uppercase text-white">
-                      News jeu
+                      {getCategoryLabel(item.category)}
                     </span>
 
                     <span className="text-xs text-slate-300">
@@ -142,7 +158,7 @@ export default function HomeLatestNews({ news }: { news: HomeNewsItem[] }) {
                   </h3>
 
                   <p className="mt-1 line-clamp-2 text-xs text-slate-300">
-                    {item.summary}
+                    {getNewsText(item)}
                   </p>
                 </div>
               </Link>
