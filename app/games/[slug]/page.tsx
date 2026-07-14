@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import AddToCollectionButton from "./AddToCollectionButton";
+import FollowGameButton from "./FollowGameButton";
 
 type Tag = {
   id: number;
@@ -142,6 +143,23 @@ export default async function GamePage({
 
   const game = data as unknown as Game;
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let isFollowed = false;
+
+  if (user) {
+    const { data: followedGame } = await supabase
+      .from("user_followed_games")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("game_id", game.id)
+      .maybeSingle();
+
+    isFollowed = Boolean(followedGame);
+  }
+
   const tags =
     game.game_tags
       ?.map((relation) => normalizeRelation(relation.tags))
@@ -181,8 +199,13 @@ export default async function GamePage({
             )}
           </div>
 
-          <div className="mt-4">
+          <div className="mt-4 grid gap-3">
             <AddToCollectionButton gameId={game.id} />
+
+            <FollowGameButton
+              gameId={game.id}
+              initialIsFollowed={isFollowed}
+            />
           </div>
         </div>
 

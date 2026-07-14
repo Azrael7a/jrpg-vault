@@ -10,36 +10,40 @@ export default async function Navbar() {
   } = await supabase.auth.getUser();
 
   return (
-    <header className="border-b">
-      <nav className="mx-auto flex max-w-5xl items-center justify-between p-4">
-        <Link href="/" className="text-xl font-bold">
+    <header className="border-b border-slate-800 bg-slate-950 text-slate-100">
+      <nav className="mx-auto flex max-w-[1500px] items-center justify-between gap-4 px-8 py-4">
+        <Link href="/" className="text-xl font-bold tracking-tight text-white">
           JRPG Vault
         </Link>
 
-        <div className="flex items-center gap-4 text-sm">
-          <Link href="/games" className="hover:underline">
+        <div className="flex flex-wrap items-center justify-end gap-4 text-sm">
+          <Link href="/games" className="text-slate-300 hover:text-white">
             Catalogue
           </Link>
 
-          <Link href="/collection" className="hover:underline">
+          <Link href="/collection" className="text-slate-300 hover:text-white">
             Ma collection
           </Link>
 
-          <Link href="/releases" className="hover:underline">
+          <Link href="/releases" className="text-slate-300 hover:text-white">
             Sorties
           </Link>
 
-          <Link href="/news" className="hover:underline">
+          <Link href="/news" className="text-slate-300 hover:text-white">
             Actualités
           </Link>
 
-          <Link href="/about" className="hover:underline">
+          <Link href="/about" className="text-slate-300 hover:text-white">
             À propos
           </Link>
 
           {user ? (
             <>
-              <Link href="/account" className="hover:underline">
+              <Link href="/followed" className="text-slate-300 hover:text-white">
+                Suivis
+              </Link>
+
+              <Link href="/account" className="text-slate-300 hover:text-white">
                 Compte
               </Link>
 
@@ -48,7 +52,7 @@ export default async function Navbar() {
           ) : (
             <Link
               href="/auth/login"
-              className="rounded border px-3 py-1 hover:bg-gray-100"
+              className="rounded border border-slate-700 px-3 py-1.5 text-slate-200 hover:border-purple-500 hover:text-white"
             >
               Connexion
             </Link>

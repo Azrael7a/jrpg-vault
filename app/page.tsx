@@ -88,6 +88,10 @@ type RawRelease = {
   platforms: ReleasePlatform | ReleasePlatform[] | null;
 };
 
+type FollowedGameRow = {
+  game_id: number | null;
+};
+
 function normalizeRelation<T>(relation: T | T[] | null): T | null {
   if (Array.isArray(relation)) {
     return relation[0] ?? null;
@@ -150,9 +154,10 @@ export default async function HomePage() {
     .limit(24);
 
   let collectionItems: CollectionItem[] = [];
+  let followedGameIds: number[] = [];
 
   if (user) {
-    const { data } = await supabase
+    const { data: collectionData } = await supabase
       .from("user_collections")
       .select(
         `
@@ -175,7 +180,10 @@ export default async function HomePage() {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
-    collectionItems = ((data ?? []) as RawCollectionItem[]).map((item) => ({
+    const rawCollectionItems =
+      (collectionData ?? []) as unknown as RawCollectionItem[];
+
+    collectionItems = rawCollectionItems.map((item) => ({
       id: item.id,
       game_id: item.game_id,
       status: item.status,
@@ -183,6 +191,17 @@ export default async function HomePage() {
       game: normalizeRelation(item.games),
       platform: normalizeRelation(item.platforms),
     }));
+
+    const { data: followedData } = await supabase
+      .from("user_followed_games")
+      .select("game_id")
+      .eq("user_id", user.id);
+
+    const followedRows = (followedData ?? []) as unknown as FollowedGameRow[];
+
+    followedGameIds = followedRows
+      .map((row) => row.game_id)
+      .filter((gameId): gameId is number => gameId !== null);
   }
 
   const stats: Record<CollectionStatus, number> = {
@@ -200,10 +219,11 @@ export default async function HomePage() {
   }
 
   const total = collectionItems.length;
-  const followedGameIds = collectionItems.map((item) => item.game_id);
   const latestItem = collectionItems[0] ?? null;
 
-  const news: NewsItem[] = ((newsData ?? []) as RawNewsItem[]).map((item) => ({
+  const rawNews = (newsData ?? []) as unknown as RawNewsItem[];
+
+  const news: NewsItem[] = rawNews.map((item) => ({
     id: item.id,
     title: item.title,
     slug: item.slug,
@@ -212,16 +232,17 @@ export default async function HomePage() {
     related_game: normalizeRelation(item.related_game),
   }));
 
-  const releases =
-    ((releasesData ?? []) as RawRelease[]).map((release) => ({
-      id: release.id,
-      game_id: release.game_id,
-      release_date: release.release_date,
-      edition_name: release.edition_name,
-      region: release.region,
-      game: normalizeRelation(release.games),
-      platform: normalizeRelation(release.platforms),
-    })) ?? [];
+  const rawReleases = (releasesData ?? []) as unknown as RawRelease[];
+
+  const releases = rawReleases.map((release) => ({
+    id: release.id,
+    game_id: release.game_id,
+    release_date: release.release_date,
+    edition_name: release.edition_name,
+    region: release.region,
+    game: normalizeRelation(release.games),
+    platform: normalizeRelation(release.platforms),
+  }));
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
