@@ -10,6 +10,18 @@ export default async function Navbar() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  let isAdmin = false;
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    isAdmin = Boolean(profile?.is_admin);
+  }
+
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/95 text-slate-100 backdrop-blur">
       <nav className="mx-auto flex max-w-[1500px] items-center gap-6 px-8 py-3">
@@ -43,6 +55,15 @@ export default async function Navbar() {
 
           {user ? (
             <>
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="rounded border border-purple-500 px-3 py-1.5 text-purple-200 hover:bg-purple-950 hover:text-white"
+                >
+                  Admin
+                </Link>
+              )}
+
               <Link href="/account" className="text-slate-300 hover:text-white">
                 Compte
               </Link>
