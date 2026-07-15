@@ -459,6 +459,52 @@ export default async function GamePage({
                 </div>
               )}
 
+              {releases.length > 0 && (
+                <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-purple-400">
+                    Disponible sur
+                  </p>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {releases.map((release) => (
+                      <div
+                        key={release.id}
+                        className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span
+                            className={`rounded border px-2 py-1 text-xs font-medium ${getPlatformTagClass(
+                              release.platform?.name ?? "",
+                            )}`}
+                          >
+                            {release.platform?.name ?? "Plateforme inconnue"}
+                          </span>
+
+                          <span className="text-xs text-slate-400">
+                            {formatStatus(release.status)}
+                          </span>
+                        </div>
+
+                        <p className="mt-3 text-sm text-slate-300">
+                          Sortie :{" "}
+                          <span className="font-semibold text-white">
+                            {formatDate(release.release_date)}
+                          </span>
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          {release.region ?? "Région inconnue"} ·{" "}
+                          {formatReleaseFormat(
+                            release.physical,
+                            release.digital,
+                          )}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="mt-8 max-w-4xl">
                 <h2 className="text-xl font-bold text-white">Description</h2>
 
