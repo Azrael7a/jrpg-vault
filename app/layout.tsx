@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
+
 import Footer from "@/components/Footer";
+import Navbar from "@/components/Navbar";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -12,14 +12,8 @@ export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: "JRPG Vault",
   description:
-    "Gère ta collection JRPG, suis ton backlog et surveille les prochaines sorties.",
+    "Gère ta collection JRPG, suis tes jeux à faire et découvre les prochaines sorties.",
 };
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  display: "swap",
-  subsets: ["latin"],
-});
 
 export default function RootLayout({
   children,
@@ -28,9 +22,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
-      <body className={`${geistSans.className} antialiased`}>
+      <body className="antialiased">
         <Navbar />
+
         <div className="min-h-screen">{children}</div>
+
         <Footer />
       </body>
     </html>
