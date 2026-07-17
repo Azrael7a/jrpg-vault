@@ -51,12 +51,11 @@ type GroupedRelease = {
 
 const platformFilters = [
   "Tous",
-  "PS4",
-  "PS5",
-  "Switch",
-  "Switch 2",
+  "Nintendo",
+  "PlayStation",
   "Xbox",
   "PC",
+  "Rétro",
 ];
 
 function formatDate(date: string | null) {
@@ -82,31 +81,54 @@ function normalizePlatformName(name: string) {
   return name.toLowerCase().trim();
 }
 
+function isNintendoPlatform(name: string) {
+  const normalizedName = normalizePlatformName(name);
+
+  return (
+    normalizedName.includes("nintendo") ||
+    normalizedName.includes("switch") ||
+    normalizedName.includes("game boy") ||
+    normalizedName.includes("gameboy") ||
+    normalizedName.includes("game boy advance") ||
+    normalizedName.includes("advance") ||
+    normalizedName.includes("gba") ||
+    normalizedName.includes("ds") ||
+    normalizedName.includes("3ds") ||
+    normalizedName === "nes" ||
+    normalizedName === "snes" ||
+    normalizedName.includes("nintendo 64") ||
+    normalizedName.includes("n64") ||
+    normalizedName.includes("gamecube") ||
+    normalizedName.includes("game cube") ||
+    normalizedName === "wii" ||
+    normalizedName === "wii u" ||
+    normalizedName.includes("wii")
+  );
+}
+
 function isPlayStationPlatform(name: string) {
   const normalizedName = normalizePlatformName(name);
 
   return (
+    normalizedName.includes("playstation") ||
+    normalizedName.includes("ps1") ||
+    normalizedName.includes("ps2") ||
+    normalizedName.includes("ps3") ||
     normalizedName.includes("ps4") ||
     normalizedName.includes("ps5") ||
-    normalizedName.includes("playstation")
-  );
-}
-
-function isSwitchPlatform(name: string) {
-  const normalizedName = normalizePlatformName(name);
-
-  return (
-    normalizedName === "switch" ||
-    normalizedName === "nintendo switch" ||
-    normalizedName.includes("switch 2") ||
-    normalizedName.includes("switch2")
+    normalizedName.includes("psp") ||
+    normalizedName.includes("vita")
   );
 }
 
 function isXboxPlatform(name: string) {
   const normalizedName = normalizePlatformName(name);
 
-  return normalizedName.includes("xbox");
+  return (
+    normalizedName.includes("xbox") ||
+    normalizedName.includes("series x") ||
+    normalizedName.includes("series s")
+  );
 }
 
 function isPcPlatform(name: string) {
@@ -119,50 +141,56 @@ function isPcPlatform(name: string) {
   );
 }
 
-function platformMatchesFilter(platformName: string, filter: string) {
-  const normalizedName = normalizePlatformName(platformName);
+function isRetroPlatform(name: string) {
+  const normalizedName = normalizePlatformName(name);
 
+  return (
+    normalizedName.includes("game boy") ||
+    normalizedName.includes("gameboy") ||
+    normalizedName.includes("advance") ||
+    normalizedName.includes("gba") ||
+    normalizedName.includes("ds") ||
+    normalizedName.includes("3ds") ||
+    normalizedName === "nes" ||
+    normalizedName === "snes" ||
+    normalizedName.includes("nintendo 64") ||
+    normalizedName.includes("n64") ||
+    normalizedName.includes("gamecube") ||
+    normalizedName.includes("game cube") ||
+    normalizedName === "wii" ||
+    normalizedName === "wii u" ||
+    normalizedName.includes("playstation 2") ||
+    normalizedName.includes("playstation 3") ||
+    normalizedName.includes("ps2") ||
+    normalizedName.includes("ps3") ||
+    normalizedName.includes("psp") ||
+    normalizedName.includes("vita") ||
+    normalizedName === "xbox" ||
+    normalizedName.includes("xbox 360")
+  );
+}
+
+function platformMatchesFilter(platformName: string, filter: string) {
   switch (filter) {
     case "Tous":
       return true;
-
-    case "PS4":
-      return (
-        normalizedName.includes("ps4") ||
-        normalizedName.includes("playstation 4")
-      );
-
-    case "PS5":
-      return (
-        normalizedName.includes("ps5") ||
-        normalizedName.includes("playstation 5")
-      );
-
-    case "Switch":
-      return (
-        normalizedName === "switch" ||
-        normalizedName === "nintendo switch"
-      );
-
-    case "Switch 2":
-      return (
-        normalizedName.includes("switch 2") ||
-        normalizedName.includes("switch2")
-      );
-
+    case "Nintendo":
+      return isNintendoPlatform(platformName);
+    case "PlayStation":
+      return isPlayStationPlatform(platformName);
     case "Xbox":
       return isXboxPlatform(platformName);
-
     case "PC":
       return isPcPlatform(platformName);
-
+    case "Rétro":
+      return isRetroPlatform(platformName);
     default:
-      return normalizedName === normalizePlatformName(filter);
+      return true;
   }
 }
 
 function getPlatformTagClass(platformName: string) {
-  if (isSwitchPlatform(platformName)) {
+  if (isNintendoPlatform(platformName)) {
     return "border-[#E60012] bg-[#E60012] text-white";
   }
 
@@ -182,9 +210,7 @@ function getPlatformTagClass(platformName: string) {
 }
 
 function getFilterButtonClass(filter: string, currentFilter: string) {
-  const isActive = filter === currentFilter;
-
-  if (isActive) {
+  if (filter === currentFilter) {
     return "rounded border border-purple-500 bg-purple-600 px-3 py-2 text-sm font-medium text-white";
   }
 
@@ -280,9 +306,10 @@ export default function HomeReleasesSection({
   const [onlyFollowed, setOnlyFollowed] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const groupedReleases = useMemo(() => {
-    return groupReleasesByGame(releases);
-  }, [releases]);
+  const groupedReleases = useMemo(
+    () => groupReleasesByGame(releases),
+    [releases],
+  );
 
   const filteredReleases = useMemo(() => {
     return groupedReleases.filter((release) => {

@@ -60,12 +60,11 @@ type FollowedGameRow = {
 
 const platformFilters = [
   { label: "Tous", value: "all" },
-  { label: "PS4", value: "ps4" },
-  { label: "PS5", value: "ps5" },
-  { label: "Switch", value: "switch" },
-  { label: "Switch 2", value: "switch-2" },
+  { label: "Nintendo", value: "nintendo" },
+  { label: "PlayStation", value: "playstation" },
   { label: "Xbox", value: "xbox" },
   { label: "PC", value: "pc" },
+  { label: "Rétro", value: "retro" },
 ];
 
 function normalizeRelation<T>(relation: T | T[] | null): T | null {
@@ -80,29 +79,54 @@ function normalizePlatformName(name: string) {
   return name.toLowerCase().trim();
 }
 
+function isNintendoPlatform(name: string) {
+  const normalizedName = normalizePlatformName(name);
+
+  return (
+    normalizedName.includes("nintendo") ||
+    normalizedName.includes("switch") ||
+    normalizedName.includes("game boy") ||
+    normalizedName.includes("gameboy") ||
+    normalizedName.includes("game boy advance") ||
+    normalizedName.includes("advance") ||
+    normalizedName.includes("gba") ||
+    normalizedName.includes("ds") ||
+    normalizedName.includes("3ds") ||
+    normalizedName === "nes" ||
+    normalizedName === "snes" ||
+    normalizedName.includes("nintendo 64") ||
+    normalizedName.includes("n64") ||
+    normalizedName.includes("gamecube") ||
+    normalizedName.includes("game cube") ||
+    normalizedName === "wii" ||
+    normalizedName === "wii u" ||
+    normalizedName.includes("wii")
+  );
+}
+
 function isPlayStationPlatform(name: string) {
   const normalizedName = normalizePlatformName(name);
 
   return (
+    normalizedName.includes("playstation") ||
+    normalizedName.includes("ps1") ||
+    normalizedName.includes("ps2") ||
+    normalizedName.includes("ps3") ||
     normalizedName.includes("ps4") ||
     normalizedName.includes("ps5") ||
-    normalizedName.includes("playstation")
-  );
-}
-
-function isSwitchPlatform(name: string) {
-  const normalizedName = normalizePlatformName(name);
-
-  return (
-    normalizedName === "switch" ||
-    normalizedName === "nintendo switch" ||
-    normalizedName.includes("switch 2") ||
-    normalizedName.includes("switch2")
+    normalizedName.includes("psp") ||
+    normalizedName.includes("vita")
   );
 }
 
 function isXboxPlatform(name: string) {
-  return normalizePlatformName(name).includes("xbox");
+  const normalizedName = normalizePlatformName(name);
+
+  return (
+    normalizedName.includes("xbox") ||
+    normalizedName.includes("series x") ||
+    normalizedName.includes("series s")
+  );
 }
 
 function isPcPlatform(name: string) {
@@ -115,50 +139,56 @@ function isPcPlatform(name: string) {
   );
 }
 
-function platformMatchesFilter(platformName: string, filter: string) {
-  const normalizedName = normalizePlatformName(platformName);
+function isRetroPlatform(name: string) {
+  const normalizedName = normalizePlatformName(name);
 
+  return (
+    normalizedName.includes("game boy") ||
+    normalizedName.includes("gameboy") ||
+    normalizedName.includes("advance") ||
+    normalizedName.includes("gba") ||
+    normalizedName.includes("ds") ||
+    normalizedName.includes("3ds") ||
+    normalizedName === "nes" ||
+    normalizedName === "snes" ||
+    normalizedName.includes("nintendo 64") ||
+    normalizedName.includes("n64") ||
+    normalizedName.includes("gamecube") ||
+    normalizedName.includes("game cube") ||
+    normalizedName === "wii" ||
+    normalizedName === "wii u" ||
+    normalizedName.includes("playstation 2") ||
+    normalizedName.includes("playstation 3") ||
+    normalizedName.includes("ps2") ||
+    normalizedName.includes("ps3") ||
+    normalizedName.includes("psp") ||
+    normalizedName.includes("vita") ||
+    normalizedName === "xbox" ||
+    normalizedName.includes("xbox 360")
+  );
+}
+
+function platformMatchesFilter(platformName: string, filter: string) {
   switch (filter) {
     case "all":
       return true;
-
-    case "ps4":
-      return (
-        normalizedName.includes("ps4") ||
-        normalizedName.includes("playstation 4")
-      );
-
-    case "ps5":
-      return (
-        normalizedName.includes("ps5") ||
-        normalizedName.includes("playstation 5")
-      );
-
-    case "switch":
-      return (
-        normalizedName === "switch" ||
-        normalizedName === "nintendo switch"
-      );
-
-    case "switch-2":
-      return (
-        normalizedName.includes("switch 2") ||
-        normalizedName.includes("switch2")
-      );
-
+    case "nintendo":
+      return isNintendoPlatform(platformName);
+    case "playstation":
+      return isPlayStationPlatform(platformName);
     case "xbox":
       return isXboxPlatform(platformName);
-
     case "pc":
       return isPcPlatform(platformName);
-
+    case "retro":
+      return isRetroPlatform(platformName);
     default:
       return true;
   }
 }
 
 function getPlatformTagClass(platformName: string) {
-  if (isSwitchPlatform(platformName)) {
+  if (isNintendoPlatform(platformName)) {
     return "border-[#E60012] bg-[#E60012] text-white";
   }
 
@@ -415,8 +445,10 @@ export default async function ReleasesPage({
     )
     .not("release_date", "is", null)
     .gte("release_date", today)
-    .neq("status", "released")
-    .order("release_date", { ascending: true });
+    .or("status.is.null,status.neq.released")
+    .order("release_date", {
+      ascending: true,
+    });
 
   let followedGameIds: number[] = [];
 
@@ -426,9 +458,7 @@ export default async function ReleasesPage({
       .select("game_id")
       .eq("user_id", user.id);
 
-    followedGameIds = (
-      (followedData ?? []) as unknown as FollowedGameRow[]
-    )
+    followedGameIds = ((followedData ?? []) as unknown as FollowedGameRow[])
       .map((item) => item.game_id)
       .filter((gameId): gameId is number => typeof gameId === "number");
   }
@@ -467,8 +497,8 @@ export default async function ReleasesPage({
               </h1>
 
               <p className="mt-3 max-w-2xl text-slate-400">
-                Suis les prochaines sorties par jeu, support, date et statut.
-                Les sorties sont maintenant classées par mois et année.
+                Suis les prochaines sorties par jeu, famille de supports, date
+                et statut.
               </p>
             </div>
 
@@ -476,7 +506,8 @@ export default async function ReleasesPage({
               <span className="text-2xl font-bold text-white">
                 {filteredReleases.length}
               </span>{" "}
-              jeux affichés
+              jeu{filteredReleases.length > 1 ? "x" : ""} affiché
+              {filteredReleases.length > 1 ? "s" : ""}
             </div>
           </div>
 
