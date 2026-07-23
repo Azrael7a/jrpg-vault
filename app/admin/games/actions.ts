@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/admin/requireAdmin";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 type Region = "PAL" | "US" | "JAP" | "ASIA" | "WORLD";
 type ReleaseFormat = "physical" | "digital" | "both";
