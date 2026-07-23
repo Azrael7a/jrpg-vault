@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/utils/supabase/server";
+import { notFound } from "next/navigation";
+
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { updateNews } from "../../actions";
 
 type GameOption = {
@@ -23,30 +24,6 @@ type NewsItem = {
   related_game_id: number | null;
 };
 
-async function requireAdmin() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!profile?.is_admin) {
-    redirect("/");
-  }
-
-  return supabase;
-}
-
 function formatDateForInput(date: string | null) {
   if (!date) {
     return "";
@@ -67,7 +44,7 @@ export default async function EditNewsPage({
     notFound();
   }
 
-  const supabase = await requireAdmin();
+  const { supabase } = await requireAdmin();
 
   const [{ data: newsData, error: newsError }, { data: gamesData }] =
     await Promise.all([
