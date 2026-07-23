@@ -4,8 +4,8 @@ import CatalogGameForm, {
   type CatalogGameValue,
   type CatalogPlatformValue,
 } from "@/components/admin/CatalogGameForm";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { updateCatalogGame } from "../../actions";
-import { requireAdmin } from "@/lib/admin/requireAdmin";
 
 type Platform = {
   id: number;
