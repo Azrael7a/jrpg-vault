@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/utils/supabase/server";
+import { notFound } from "next/navigation";
+
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { updateReleaseRows } from "../../actions";
 
 export const dynamic = "force-dynamic";
@@ -30,30 +31,6 @@ type Release = {
   digital: boolean | null;
 };
 
-async function ensureAdmin() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!profile?.is_admin) {
-    redirect("/");
-  }
-
-  return supabase;
-}
-
 export default async function EditReleasePage({
   params,
 }: {
@@ -66,7 +43,7 @@ export default async function EditReleasePage({
     notFound();
   }
 
-  const supabase = await ensureAdmin();
+  const { supabase } = await requireAdmin();
 
   const [{ data: gameData }, { data: platformsData }, { data: releasesData }] =
     await Promise.all([
@@ -178,7 +155,8 @@ export default async function EditReleasePage({
                 const defaultReleaseDate =
                   release?.release_date ?? firstRelease?.release_date ?? "";
 
-                const defaultRegion = release?.region ?? firstRelease?.region ?? "PAL";
+                const defaultRegion =
+                  release?.region ?? firstRelease?.region ?? "PAL";
                 const defaultStatus =
                   release?.status ?? firstRelease?.status ?? "confirmed";
                 const defaultEditionName =
