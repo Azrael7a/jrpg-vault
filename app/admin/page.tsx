@@ -1,37 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-async function requireAdmin() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!profile?.is_admin) {
-    redirect("/");
-  }
-
-  return supabase;
-}
-
-export default async function AdminPage() {
-  await requireAdmin();
-
+export default function AdminPage() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <section className="border-b border-slate-800 bg-gradient-to-br from-slate-950 via-slate-950 to-purple-950/30">
