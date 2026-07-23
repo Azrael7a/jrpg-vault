@@ -11,31 +11,14 @@ export async function requireAdmin() {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    console.log("Aucun utilisateur connecté");
-    redirect("/login");
+    redirect("/auth/login");
   }
 
-  const { data: isAdmin, error: adminError } =
-    await supabase.rpc("is_admin");
+  const { data: isAdmin, error } = await supabase.rpc("is_admin");
 
-  console.log("Utilisateur connecté :", user.email);
-  console.log("Résultat is_admin :", isAdmin);
-
-  if (adminError) {
-    console.error(
-      "Erreur de vérification administrateur :",
-      adminError,
-    );
-
+  if (error || isAdmin !== true) {
     redirect("/");
   }
 
-  if (!isAdmin) {
-    redirect("/");
-  }
-
-  return {
-    supabase,
-    user,
-  };
+  return { supabase, user };
 }
