@@ -1,7 +1,7 @@
 import Link from "next/link";
 import CatalogGameForm from "@/components/admin/CatalogGameForm";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { createCatalogGame } from "../actions";
-import { requireAdmin } from "@/lib/admin/requireAdmin";
 
 type Platform = {
   id: number;
