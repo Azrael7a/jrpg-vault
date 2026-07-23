@@ -1,6 +1,6 @@
 import Link from "next/link";
 import DeleteCatalogGameButton from "@/components/admin/DeleteCatalogGameButton";
-import { requireAdmin } from "@/lib/admin/requireAdmin";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 type PlatformRelation = {
   id: number;
