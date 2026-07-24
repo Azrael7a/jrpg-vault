@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 function generateSlug(title: string) {
   return title
@@ -14,30 +15,6 @@ function generateSlug(title: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-async function ensureAdmin() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!profile?.is_admin) {
-    redirect("/");
-  }
-
-  return supabase;
-}
-
 function revalidateReleasePages() {
   revalidatePath("/");
   revalidatePath("/releases");
@@ -45,7 +22,7 @@ function revalidateReleasePages() {
 }
 
 export async function createReleaseGroup(formData: FormData) {
-  const supabase = await ensureAdmin();
+  const { supabase } = await requireAdmin();
 
   const existingGameId = String(formData.get("existing_game_id") ?? "");
   const newTitle = String(formData.get("new_title") ?? "").trim();
@@ -166,7 +143,7 @@ export async function createReleaseGroup(formData: FormData) {
 }
 
 export async function updateReleaseRows(formData: FormData) {
-  const supabase = await ensureAdmin();
+  const { supabase } = await requireAdmin();
 
   const gameId = Number(formData.get("game_id"));
 
@@ -282,7 +259,7 @@ export async function updateReleaseRows(formData: FormData) {
 }
 
 export async function markReleaseGroupAsReleased(formData: FormData) {
-  const supabase = await ensureAdmin();
+  const { supabase } = await requireAdmin();
 
   const gameId = Number(formData.get("game_id"));
 
@@ -304,7 +281,7 @@ export async function markReleaseGroupAsReleased(formData: FormData) {
 }
 
 export async function deleteReleaseGroup(formData: FormData) {
-  const supabase = await ensureAdmin();
+  const { supabase } = await requireAdmin();
 
   const gameId = Number(formData.get("game_id"));
 
