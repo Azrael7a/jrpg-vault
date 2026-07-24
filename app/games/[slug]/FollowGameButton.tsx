@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
 
 export default function FollowGameButton({

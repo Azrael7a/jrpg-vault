@@ -1,7 +1,7 @@
 import HomeLatestNews from "@/components/home/HomeLatestNews";
 import HomeReleasesSection from "@/components/home/HomeReleasesSection";
 import HomeVaultSummary from "@/components/home/HomeVaultSummary";
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 import { useEffect, useMemo, useState } from "react";
 
 type Region = "PAL" | "US" | "JAP" | "ASIA" | "WORLD";

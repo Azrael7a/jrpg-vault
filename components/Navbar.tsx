@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import LogoutButton from "@/components/logout-button";
 import NavbarGameSearch from "@/components/NavbarGameSearch";
 
