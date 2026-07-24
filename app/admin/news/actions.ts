@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 function generateSlug(title: string) {
   return title
@@ -45,30 +46,6 @@ function getRelatedGameId(value: FormDataEntryValue | null) {
   return relatedGameId;
 }
 
-async function requireAdmin() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!profile?.is_admin) {
-    redirect("/");
-  }
-
-  return supabase;
-}
-
 function revalidateNewsPages() {
   revalidatePath("/");
   revalidatePath("/news");
@@ -76,7 +53,7 @@ function revalidateNewsPages() {
 }
 
 export async function createNews(formData: FormData) {
-  const supabase = await requireAdmin();
+  const { supabase } = await requireAdmin();
 
   const title = String(formData.get("title") ?? "").trim();
   const slugInput = String(formData.get("slug") ?? "").trim();
@@ -130,7 +107,7 @@ export async function createNews(formData: FormData) {
 }
 
 export async function updateNews(formData: FormData) {
-  const supabase = await requireAdmin();
+  const { supabase } = await requireAdmin();
 
   const id = Number(formData.get("id"));
 
@@ -188,7 +165,7 @@ export async function updateNews(formData: FormData) {
 }
 
 export async function deleteNews(formData: FormData) {
-  const supabase = await requireAdmin();
+  const { supabase } = await requireAdmin();
 
   const id = Number(formData.get("id"));
 
