@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -41,9 +42,7 @@ export default function LoginPage() {
               Connexion
             </p>
 
-            <h1 className="mt-1 text-3xl font-bold text-white">
-              Se connecter
-            </h1>
+            <h1 className="mt-1 text-3xl font-bold text-white">Se connecter</h1>
 
             <p className="mt-2 text-sm text-slate-400">
               Connecte-toi pour gérer ta collection JRPG.
@@ -52,12 +51,11 @@ export default function LoginPage() {
 
           <form onSubmit={handleLogin} className="mt-8 grid gap-5">
             <label className="grid gap-2">
-              <span className="text-sm font-medium text-slate-300">
-                Email
-              </span>
+              <span className="text-sm font-medium text-slate-300">Email</span>
 
               <input
                 type="email"
+                autoComplete="email"
                 required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -73,6 +71,7 @@ export default function LoginPage() {
 
               <input
                 type="password"
+                autoComplete="current-password"
                 required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -95,6 +94,22 @@ export default function LoginPage() {
               {isLoading ? "Connexion..." : "Se connecter"}
             </button>
           </form>
+
+          <div className="mt-5 flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <Link
+              href="/auth/sign-up"
+              className="text-purple-300 underline underline-offset-4"
+            >
+              Créer un compte
+            </Link>
+
+            <Link
+              href="/auth/forgot-password"
+              className="text-slate-300 underline underline-offset-4"
+            >
+              Mot de passe oublié
+            </Link>
+          </div>
 
           <div className="mt-6 border-t border-slate-800 pt-5 text-sm text-slate-400">
             <p>
