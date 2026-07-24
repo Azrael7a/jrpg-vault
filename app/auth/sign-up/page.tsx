@@ -1,11 +1,13 @@
 import { SignUpForm } from "@/components/sign-up-form";
 
-export default function Page() {
+export default function SignUpPage() {
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
-        <SignUpForm />
-      </div>
-    </div>
+    <main className="min-h-screen bg-slate-950 text-slate-100">
+      <section className="mx-auto flex min-h-[calc(100vh-80px)] max-w-[1500px] items-center justify-center px-8 py-12">
+        <div className="w-full max-w-md">
+          <SignUpForm />
+        </div>
+      </section>
+    </main>
   );
 }
