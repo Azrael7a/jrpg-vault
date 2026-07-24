@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { createNews } from "../actions";
 
 type GameOption = {
@@ -8,32 +8,8 @@ type GameOption = {
   title: string;
 };
 
-async function requireAdmin() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!profile?.is_admin) {
-    redirect("/");
-  }
-
-  return supabase;
-}
-
 export default async function NewNewsPage() {
-  const supabase = await requireAdmin();
+  const { supabase } = await requireAdmin();
 
   const { data: gamesData, error: gamesError } = await supabase
     .from("games")
