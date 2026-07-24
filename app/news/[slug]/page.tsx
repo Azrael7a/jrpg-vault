@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

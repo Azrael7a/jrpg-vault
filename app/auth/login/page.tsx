@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");

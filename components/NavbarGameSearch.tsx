@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 type GameSearchResult = {
   id: number;

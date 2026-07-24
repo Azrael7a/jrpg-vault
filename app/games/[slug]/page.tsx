@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import AddToCollectionButton from "./AddToCollectionButton";
 import FollowGameButton from "./FollowGameButton";
 
