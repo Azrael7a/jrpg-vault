@@ -23,16 +23,13 @@ export default function NavbarGameSearch() {
     const cleanQuery = query.trim();
 
     if (cleanQuery.length < 2) {
-      setResults([]);
-      setIsOpen(false);
       return;
     }
 
+    let cancelled = false;
+
     const timeout = window.setTimeout(async () => {
       const supabase = createClient();
-
-      setIsLoading(true);
-
       const { data, error } = await supabase
         .from("games")
         .select("id, title, slug, cover_url, release_year")
@@ -40,18 +37,25 @@ export default function NavbarGameSearch() {
         .order("title", { ascending: true })
         .limit(6);
 
+      if (cancelled) {
+        return;
+      }
+
       if (error) {
         console.error("Erreur recherche jeux :", error);
         setResults([]);
       } else {
         setResults((data ?? []) as GameSearchResult[]);
-        setIsOpen(true);
       }
 
+      setIsOpen(true);
       setIsLoading(false);
     }, 250);
 
-    return () => window.clearTimeout(timeout);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
   }, [query]);
 
   useEffect(() => {
@@ -71,14 +75,28 @@ export default function NavbarGameSearch() {
     };
   }, []);
 
+  function handleQueryChange(value: string) {
+    setQuery(value);
+
+    if (value.trim().length < 2) {
+      setResults([]);
+      setIsOpen(false);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setIsOpen(true);
+  }
+
   return (
     <div ref={containerRef} className="relative w-full max-w-xs">
       <input
         type="search"
         value={query}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={(event) => handleQueryChange(event.target.value)}
         onFocus={() => {
-          if (results.length > 0) {
+          if (query.trim().length >= 2) {
             setIsOpen(true);
           }
         }}

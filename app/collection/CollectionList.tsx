@@ -77,6 +77,11 @@ export default function CollectionList({ items }: { items: CollectionItem[] }) {
       </div>
     );
   }
+
+  return <PopulatedCollectionList items={items} />;
+}
+
+function PopulatedCollectionList({ items }: { items: CollectionItem[] }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
@@ -85,7 +90,7 @@ export default function CollectionList({ items }: { items: CollectionItem[] }) {
 
   const platforms = useMemo(() => {
     return Array.from(
-      new Set(items.map((item) => item.platform?.name).filter(Boolean))
+      new Set(items.map((item) => item.platform?.name).filter(Boolean)),
     ).sort() as string[];
   }, [items]);
 
@@ -105,13 +110,10 @@ export default function CollectionList({ items }: { items: CollectionItem[] }) {
 
       const matchesStatus =
         statusFilter === "all" || item.status === statusFilter;
-
       const matchesPlatform =
         platformFilter === "all" || item.platform?.name === platformFilter;
-
       const matchesFormat =
         formatFilter === "all" || item.format === formatFilter;
-
       const matchesRegion =
         regionFilter === "all" || item.region === regionFilter;
 
@@ -269,15 +271,12 @@ export default function CollectionList({ items }: { items: CollectionItem[] }) {
                     <span className="rounded bg-gray-100 px-2 py-1">
                       {item.platform?.name ?? "Plateforme inconnue"}
                     </span>
-
                     <span className="rounded bg-gray-100 px-2 py-1">
                       {statusLabels[item.status]}
                     </span>
-
                     <span className="rounded bg-gray-100 px-2 py-1">
                       {formatLabels[item.format]}
                     </span>
-
                     <span className="rounded bg-gray-100 px-2 py-1">
                       {item.region}
                     </span>
@@ -312,7 +311,6 @@ export default function CollectionList({ items }: { items: CollectionItem[] }) {
                   itemId={item.id}
                   currentStatus={item.status}
                 />
-
                 <DeleteCollectionItemButton itemId={item.id} />
               </div>
             </div>
@@ -321,4 +319,4 @@ export default function CollectionList({ items }: { items: CollectionItem[] }) {
       </div>
     </div>
   );
-}	
+}
