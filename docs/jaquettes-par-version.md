@@ -2,9 +2,23 @@
 
 ## Modèle
 
-La jaquette principale reste stockée dans `games.cover_url`.
+La jaquette principale reste référencée dans `games.cover_url`.
 
 Chaque combinaison jeu, plateforme et région peut définir une jaquette spécifique dans `game_platforms.cover_url`.
+
+Les fichiers sont envoyés depuis l’ordinateur de l’administrateur vers le bucket public Supabase Storage `game-covers`. Les colonnes `cover_url` conservent ensuite l’URL publique générée par Supabase.
+
+## Formats acceptés
+
+- JPEG ;
+- PNG ;
+- WebP ;
+- taille maximale : 5 Mo par image.
+
+## Sécurité
+
+- les images sont publiques en lecture pour pouvoir apparaître dans le catalogue ;
+- seuls les utilisateurs authentifiés reconnus comme administrateurs par `public.is_admin()` peuvent ajouter, modifier ou supprimer des fichiers dans le bucket.
 
 ## Comportement public
 
@@ -15,4 +29,4 @@ Chaque combinaison jeu, plateforme et région peut définir une jaquette spécif
 
 ## Déploiement
 
-La migration `20260727120000_add_cover_url_to_game_platforms.sql` doit être appliquée à Supabase avant de déployer le code applicatif.
+La migration `20260727120000_add_cover_url_to_game_platforms.sql` doit être appliquée à Supabase avant de déployer le code applicatif. Elle ajoute la colonne, crée le bucket et installe les politiques d’écriture réservées aux administrateurs.
