@@ -1,9 +1,9 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-type Region = "PAL" | "US" | "JAP" | "ASIA" | "WORLD";
+export type Region = "PAL" | "US" | "JAP" | "ASIA" | "WORLD";
 
 type PlatformRelation = {
   id: number;
@@ -17,7 +17,6 @@ type RawGamePlatform = {
   region: Region;
   physical: boolean | null;
   digital: boolean | null;
-  cover_url: string | null;
   platforms: PlatformRelation | PlatformRelation[] | null;
 };
 
@@ -26,7 +25,12 @@ type AvailableVersion = {
   region: Region;
   physical: boolean;
   digital: boolean;
-  coverUrl: string | null;
+};
+
+type Props = {
+  gameId: number;
+  preferredPlatformId?: number | null;
+  preferredRegion?: Region | null;
 };
 
 const statuses = [
@@ -70,43 +74,12 @@ function getInitialFormat(version: AvailableVersion) {
   return "physical";
 }
 
-function getVersionKey(version: AvailableVersion) {
-  return `${version.platform.id}:${version.region}`;
-}
-
-function adaptCoverToImage(
-  container: HTMLElement,
-  image: HTMLImageElement,
-) {
-  const updateSize = () => {
-    if (!image.naturalWidth || !image.naturalHeight) {
-      return;
-    }
-
-    const naturalRatio = image.naturalWidth / image.naturalHeight;
-    const displayRatio = Math.min(1.1, Math.max(0.62, naturalRatio));
-
-    container.style.aspectRatio = String(displayRatio);
-    image.className = "h-full w-full object-contain";
-  };
-
-  if (image.complete && image.naturalWidth > 0) {
-    updateSize();
-  } else {
-    image.addEventListener("load", updateSize, { once: true });
-  }
-}
-
 export default function AddToCollectionButton({
   gameId,
-}: {
-  gameId: number;
-}) {
+  preferredPlatformId,
+  preferredRegion,
+}: Props) {
   const supabase = useMemo(() => createClient(), []);
-  const formRef = useRef<HTMLFormElement>(null);
-  const coverContainerRef = useRef<HTMLElement | null>(null);
-  const defaultCoverMarkupRef = useRef<string | null>(null);
-
   const [availableVersions, setAvailableVersions] = useState<
     AvailableVersion[]
   >([]);
@@ -117,7 +90,7 @@ export default function AddToCollectionButton({
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingPlatforms, setIsLoadingPlatforms] = useState(true);
-  const [activeCoverKey, setActiveCoverKey] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     async function loadPlatforms() {
@@ -131,7 +104,6 @@ export default function AddToCollectionButton({
             region,
             physical,
             digital,
-            cover_url,
             platforms (
               id,
               name,
@@ -143,7 +115,7 @@ export default function AddToCollectionButton({
         .eq("game_id", gameId);
 
       if (error) {
-        setMessage(`Erreur plateformes : ${error.message}`);
+        setMessage("Impossible de charger les versions disponibles.");
         setIsLoadingPlatforms(false);
         return;
       }
@@ -161,7 +133,6 @@ export default function AddToCollectionButton({
             region: gamePlatform.region,
             physical: Boolean(gamePlatform.physical),
             digital: Boolean(gamePlatform.digital),
-            coverUrl: gamePlatform.cover_url,
           };
         })
         .filter(
@@ -170,62 +141,49 @@ export default function AddToCollectionButton({
 
       setAvailableVersions(versions);
 
-      if (versions.length > 0) {
-        const sortedPlatforms = Array.from(
-          new Map(
-            versions.map((version) => [
-              version.platform.id,
-              version.platform,
-            ]),
-          ).values(),
-        ).sort(comparePlatforms);
+      const preferredVersion = versions.find(
+        (version) =>
+          version.platform.id === preferredPlatformId &&
+          version.region === preferredRegion,
+      );
 
-        const firstPlatform = sortedPlatforms[0];
-        const firstVersion = versions.find(
-          (version) => version.platform.id === firstPlatform.id,
-        );
+      const initialVersion =
+        preferredVersion ??
+        [...versions].sort((a, b) =>
+          comparePlatforms(a.platform, b.platform),
+        )[0];
 
-        setPlatformId(String(firstPlatform.id));
-        setRegion(firstVersion?.region ?? "WORLD");
-
-        if (firstVersion) {
-          setFormat(getInitialFormat(firstVersion));
-        }
+      if (initialVersion) {
+        setPlatformId(String(initialVersion.platform.id));
+        setRegion(initialVersion.region);
+        setFormat(getInitialFormat(initialVersion));
       }
 
       setIsLoadingPlatforms(false);
     }
 
     void loadPlatforms();
-  }, [gameId, supabase]);
+  }, [gameId, preferredPlatformId, preferredRegion, supabase]);
 
   useEffect(() => {
-    if (isLoadingPlatforms) {
+    if (!preferredPlatformId || !preferredRegion) {
       return;
     }
 
-    const form = formRef.current;
-    const actionPanel = form?.parentElement;
-    const coverContainer = actionPanel?.previousElementSibling;
+    const version = availableVersions.find(
+      (item) =>
+        item.platform.id === preferredPlatformId &&
+        item.region === preferredRegion,
+    );
 
-    if (!(coverContainer instanceof HTMLElement)) {
+    if (!version) {
       return;
     }
 
-    coverContainerRef.current = coverContainer;
-
-    if (defaultCoverMarkupRef.current === null) {
-      defaultCoverMarkupRef.current = coverContainer.innerHTML;
-    }
-
-    const currentImage = coverContainer.querySelector("img");
-
-    if (currentImage instanceof HTMLImageElement) {
-      adaptCoverToImage(coverContainer, currentImage);
-    } else {
-      coverContainer.style.aspectRatio = "3 / 4";
-    }
-  }, [isLoadingPlatforms]);
+    setPlatformId(String(version.platform.id));
+    setRegion(version.region);
+    setFormat(getInitialFormat(version));
+  }, [availableVersions, preferredPlatformId, preferredRegion]);
 
   const platforms = useMemo(
     () =>
@@ -259,22 +217,6 @@ export default function AddToCollectionButton({
     (version) =>
       version.platform.id === Number(platformId) &&
       version.region === region,
-  );
-
-  const coverVersions = useMemo(
-    () =>
-      availableVersions
-        .filter((version) => Boolean(version.coverUrl))
-        .sort((a, b) => {
-          const platformComparison = comparePlatforms(a.platform, b.platform);
-
-          if (platformComparison !== 0) {
-            return platformComparison;
-          }
-
-          return a.region.localeCompare(b.region, "fr");
-        }),
-    [availableVersions],
   );
 
   const formats = useMemo(() => {
@@ -318,64 +260,6 @@ export default function AddToCollectionButton({
     }
   }, [format, formats]);
 
-  function restoreDefaultCover() {
-    const coverContainer = coverContainerRef.current;
-    const defaultMarkup = defaultCoverMarkupRef.current;
-
-    if (!coverContainer || defaultMarkup === null) {
-      return;
-    }
-
-    coverContainer.innerHTML = defaultMarkup;
-    const image = coverContainer.querySelector("img");
-
-    if (image instanceof HTMLImageElement) {
-      adaptCoverToImage(coverContainer, image);
-    } else {
-      coverContainer.style.aspectRatio = "3 / 4";
-    }
-  }
-
-  function showVersionCover(version: AvailableVersion) {
-    const coverContainer = coverContainerRef.current;
-
-    if (!coverContainer || !version.coverUrl) {
-      restoreDefaultCover();
-      return;
-    }
-
-    const image = document.createElement("img");
-    image.src = version.coverUrl;
-    image.alt = `Jaquette ${version.platform.name} ${version.region}`;
-    image.className = "h-full w-full object-contain";
-
-    image.addEventListener(
-      "error",
-      () => {
-        restoreDefaultCover();
-        setActiveCoverKey(null);
-      },
-      { once: true },
-    );
-
-    coverContainer.style.aspectRatio = "3 / 4";
-    coverContainer.replaceChildren(image);
-    adaptCoverToImage(coverContainer, image);
-  }
-
-  function selectDefaultCover() {
-    setActiveCoverKey(null);
-    restoreDefaultCover();
-  }
-
-  function selectCoverVersion(version: AvailableVersion) {
-    setActiveCoverKey(getVersionKey(version));
-    setPlatformId(String(version.platform.id));
-    setRegion(version.region);
-    setFormat(getInitialFormat(version));
-    showVersionCover(version);
-  }
-
   function handlePlatformChange(value: string) {
     setPlatformId(value);
 
@@ -402,9 +286,7 @@ export default function AddToCollectionButton({
     }
   }
 
-  async function addToCollection(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
+  async function addToCollection(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
     setIsLoading(true);
@@ -412,13 +294,12 @@ export default function AddToCollectionButton({
     const { data: userData } = await supabase.auth.getUser();
 
     if (!userData.user) {
-      setMessage("Connecte-toi pour ajouter ce jeu.");
-      setIsLoading(false);
+      window.location.href = "/auth/login";
       return;
     }
 
     if (!platformId || !region) {
-      setMessage("Aucun support n’est disponible pour ce jeu.");
+      setMessage("Aucune version ne peut être ajoutée pour ce jeu.");
       setIsLoading(false);
       return;
     }
@@ -433,14 +314,11 @@ export default function AddToCollectionButton({
     });
 
     if (error) {
-      if (error.code === "23505") {
-        setMessage(
-          "Ce jeu existe déjà dans ta collection avec cette plateforme, région et format.",
-        );
-      } else {
-        setMessage(`Erreur : ${error.message}`);
-      }
-
+      setMessage(
+        error.code === "23505"
+          ? "Cette version est déjà présente dans ta collection."
+          : "Impossible d’ajouter le jeu pour le moment.",
+      );
       setIsLoading(false);
       return;
     }
@@ -451,81 +329,66 @@ export default function AddToCollectionButton({
 
   if (isLoadingPlatforms) {
     return (
-      <div className="jrpg-card p-4 text-sm text-slate-400">
-        Chargement des supports…
+      <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-sm text-slate-400">
+        Préparation des versions disponibles…
       </div>
     );
   }
 
   if (platforms.length === 0) {
     return (
-      <div className="jrpg-card p-4">
-        <h2 className="text-xl font-semibold">Ajouter à ma collection</h2>
-        <p className="mt-3 text-sm text-amber-300">
-          Aucun support n’est encore associé à ce jeu.
-        </p>
+      <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-sm text-slate-400">
+        Aucune version n’est encore disponible pour la collection.
       </div>
     );
   }
 
+  if (!isOpen) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setIsOpen(true);
+          setMessage("");
+        }}
+        className="w-full rounded-xl bg-purple-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-purple-500"
+      >
+        + Ajouter à ma collection
+      </button>
+    );
+  }
+
   return (
-    <form ref={formRef} onSubmit={addToCollection} className="jrpg-card p-4">
-      {coverVersions.length > 0 && (
-        <div className="mb-5 border-b border-slate-800 pb-5">
-          <p className="text-sm font-semibold text-slate-200">
-            Choisir la jaquette affichée
-          </p>
+    <form
+      onSubmit={addToCollection}
+      className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="font-bold text-white">Ajouter à ma collection</h2>
           <p className="mt-1 text-xs text-slate-500">
-            La fiche s’ouvre sur la jaquette par défaut du catalogue.
+            Choisis la version que tu possèdes ou souhaites suivre.
           </p>
-
-          <div className="mt-3 flex flex-nowrap gap-2 overflow-x-auto pb-2">
-            <button
-              type="button"
-              onClick={selectDefaultCover}
-              aria-pressed={activeCoverKey === null}
-              className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1.5 text-xs font-medium transition ${
-                activeCoverKey === null
-                  ? "border-purple-400 bg-purple-500/15 text-purple-100"
-                  : "border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-500"
-              }`}
-            >
-              Jaquette par défaut
-            </button>
-
-            {coverVersions.map((version) => {
-              const versionKey = getVersionKey(version);
-              const isSelected = activeCoverKey === versionKey;
-
-              return (
-                <button
-                  key={versionKey}
-                  type="button"
-                  onClick={() => selectCoverVersion(version)}
-                  aria-pressed={isSelected}
-                  className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1.5 text-xs font-medium transition ${
-                    isSelected
-                      ? "border-purple-400 bg-purple-500/15 text-purple-100"
-                      : "border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-500"
-                  }`}
-                >
-                  {version.platform.name} · {version.region}
-                </button>
-              );
-            })}
-          </div>
         </div>
-      )}
 
-      <h2 className="text-xl font-semibold">Ajouter à ma collection</h2>
+        <button
+          type="button"
+          onClick={() => setIsOpen(false)}
+          className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500"
+        >
+          Fermer
+        </button>
+      </div>
 
-      <div className="mt-4 grid gap-4">
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-200">Plateforme</span>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <label className="grid gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Plateforme
+          </span>
           <select
             value={platformId}
             onChange={(event) => handlePlatformChange(event.target.value)}
-            className="rounded border px-3 py-2"
+            className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"
           >
             {platforms.map((platform) => (
               <option key={platform.id} value={platform.id}>
@@ -535,27 +398,16 @@ export default function AddToCollectionButton({
           </select>
         </label>
 
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-200">Format</span>
-          <select
-            value={format}
-            onChange={(event) => setFormat(event.target.value)}
-            className="rounded border px-3 py-2"
-          >
-            {formats.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-200">Région</span>
+        <label className="grid gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Région
+          </span>
           <select
             value={region}
-            onChange={(event) => handleRegionChange(event.target.value as Region)}
-            className="rounded border px-3 py-2"
+            onChange={(event) =>
+              handleRegionChange(event.target.value as Region)
+            }
+            className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"
           >
             {regions.map((item) => (
               <option key={item} value={item}>
@@ -565,12 +417,31 @@ export default function AddToCollectionButton({
           </select>
         </label>
 
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-200">Statut</span>
+        <label className="grid gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Format
+          </span>
+          <select
+            value={format}
+            onChange={(event) => setFormat(event.target.value)}
+            className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"
+          >
+            {formats.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="grid gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Statut
+          </span>
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value)}
-            className="rounded border px-3 py-2"
+            className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"
           >
             {statuses.map((item) => (
               <option key={item.value} value={item.value}>
@@ -581,15 +452,21 @@ export default function AddToCollectionButton({
         </label>
       </div>
 
-      <button
-        type="submit"
-        disabled={isLoading}
-        className="jrpg-button-primary mt-4 px-4 py-2 disabled:opacity-50"
-      >
-        {isLoading ? "Ajout..." : "Ajouter à ma collection"}
-      </button>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-purple-500 disabled:opacity-50"
+        >
+          {isLoading ? "Ajout en cours…" : "Confirmer l’ajout"}
+        </button>
 
-      {message && <p className="mt-3 text-sm text-slate-300">{message}</p>}
+        {message && (
+          <p aria-live="polite" className="text-sm text-slate-300">
+            {message}
+          </p>
+        )}
+      </div>
     </form>
   );
 }
