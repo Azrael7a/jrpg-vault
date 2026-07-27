@@ -1,7 +1,8 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export type Region = "PAL" | "US" | "JAP" | "ASIA" | "WORLD";
 
@@ -20,11 +21,28 @@ type RawGamePlatform = {
   platforms: PlatformRelation | PlatformRelation[] | null;
 };
 
+type RawCollectionEntry = {
+  id: number;
+  platform_id: number | null;
+  status: string | null;
+  format: string | null;
+  region: Region | null;
+  platforms: PlatformRelation | PlatformRelation[] | null;
+};
+
 type AvailableVersion = {
   platform: PlatformRelation;
   region: Region;
   physical: boolean;
   digital: boolean;
+};
+
+type CollectionEntry = {
+  id: number;
+  platform: PlatformRelation | null;
+  status: string | null;
+  format: string | null;
+  region: Region | null;
 };
 
 type Props = {
@@ -74,15 +92,36 @@ function getInitialFormat(version: AvailableVersion) {
   return "physical";
 }
 
+function getStatusLabel(value: string | null) {
+  return statuses.find((status) => status.value === value)?.label ?? "Collection";
+}
+
+function getFormatLabel(value: string | null) {
+  switch (value) {
+    case "physical":
+      return "Physique";
+    case "digital":
+      return "Numérique";
+    case "both":
+      return "Physique + numérique";
+    default:
+      return null;
+  }
+}
+
 export default function AddToCollectionButton({
   gameId,
   preferredPlatformId,
   preferredRegion,
 }: Props) {
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [availableVersions, setAvailableVersions] = useState<
     AvailableVersion[]
   >([]);
+  const [collectionEntries, setCollectionEntries] = useState<CollectionEntry[]>(
+    [],
+  );
   const [platformId, setPlatformId] = useState("");
   const [format, setFormat] = useState("physical");
   const [region, setRegion] = useState<Region | "">("");
@@ -90,7 +129,64 @@ export default function AddToCollectionButton({
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingPlatforms, setIsLoadingPlatforms] = useState(true);
+  const [isLoadingCollection, setIsLoadingCollection] = useState(true);
+  const [removingEntryId, setRemovingEntryId] = useState<number | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+
+  const refreshCollectionEntries = useCallback(
+    async (showLoading = false) => {
+      if (showLoading) {
+        setIsLoadingCollection(true);
+      }
+
+      const { data: userData } = await supabase.auth.getUser();
+
+      if (!userData.user) {
+        setCollectionEntries([]);
+        setIsLoadingCollection(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_collections")
+        .select(
+          `
+            id,
+            platform_id,
+            status,
+            format,
+            region,
+            platforms (
+              id,
+              name,
+              is_legacy,
+              display_order
+            )
+          `,
+        )
+        .eq("user_id", userData.user.id)
+        .eq("game_id", gameId)
+        .order("id", { ascending: true });
+
+      if (error) {
+        setMessage("Impossible de charger ta collection pour ce jeu.");
+        setIsLoadingCollection(false);
+        return;
+      }
+
+      const entries = ((data ?? []) as RawCollectionEntry[]).map((entry) => ({
+        id: entry.id,
+        platform: normalizeRelation(entry.platforms),
+        status: entry.status,
+        format: entry.format,
+        region: entry.region,
+      }));
+
+      setCollectionEntries(entries);
+      setIsLoadingCollection(false);
+    },
+    [gameId, supabase],
+  );
 
   useEffect(() => {
     async function loadPlatforms() {
@@ -164,6 +260,10 @@ export default function AddToCollectionButton({
 
     void loadPlatforms();
   }, [gameId, preferredPlatformId, preferredRegion, supabase]);
+
+  useEffect(() => {
+    void refreshCollectionEntries(true);
+  }, [refreshCollectionEntries]);
 
   useEffect(() => {
     if (!preferredPlatformId || !preferredRegion) {
@@ -323,14 +423,60 @@ export default function AddToCollectionButton({
       return;
     }
 
-    setMessage("Jeu ajouté à ta collection.");
+    await refreshCollectionEntries();
+    setMessage("Version ajoutée à ta collection.");
     setIsLoading(false);
+    setIsOpen(false);
+    router.refresh();
   }
 
-  if (isLoadingPlatforms) {
+  async function removeFromCollection(entry: CollectionEntry) {
+    const platformName = entry.platform?.name ?? "cette version";
+    const regionLabel = entry.region ? ` · ${entry.region}` : "";
+
+    if (
+      !window.confirm(
+        `Retirer ${platformName}${regionLabel} de ta collection ?`,
+      )
+    ) {
+      return;
+    }
+
+    setMessage("");
+    setRemovingEntryId(entry.id);
+
+    const { data: userData } = await supabase.auth.getUser();
+
+    if (!userData.user) {
+      window.location.href = "/auth/login";
+      return;
+    }
+
+    const { error } = await supabase
+      .from("user_collections")
+      .delete()
+      .eq("id", entry.id)
+      .eq("user_id", userData.user.id)
+      .eq("game_id", gameId);
+
+    if (error) {
+      setMessage("Impossible de retirer cette version pour le moment.");
+      setRemovingEntryId(null);
+      return;
+    }
+
+    setCollectionEntries((currentEntries) =>
+      currentEntries.filter((currentEntry) => currentEntry.id !== entry.id),
+    );
+    setMessage("Version retirée de ta collection.");
+    setRemovingEntryId(null);
+    router.refresh();
+  }
+
+  if (isLoadingPlatforms || isLoadingCollection) {
     return (
       <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-sm text-slate-400">
-        Préparation des versions disponibles…
+        Préparation de ta collection…
       </div>
     );
   }
@@ -343,18 +489,99 @@ export default function AddToCollectionButton({
     );
   }
 
+  if (!isOpen && collectionEntries.length > 0) {
+    return (
+      <section className="rounded-xl border border-emerald-500/30 bg-emerald-950/15 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-emerald-200">
+              ✓ Dans ma collection
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              {collectionEntries.length === 1
+                ? "1 version enregistrée"
+                : `${collectionEntries.length} versions enregistrées`}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(true);
+              setMessage("");
+            }}
+            className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-purple-500 hover:text-purple-200"
+          >
+            + Ajouter une autre version
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-2">
+          {collectionEntries.map((entry) => {
+            const details = [
+              entry.region,
+              getFormatLabel(entry.format),
+              getStatusLabel(entry.status),
+            ].filter(Boolean);
+
+            return (
+              <div
+                key={entry.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold text-white">
+                    {entry.platform?.name ?? "Plateforme"}
+                  </p>
+                  {details.length > 0 && (
+                    <p className="mt-1 text-xs text-slate-400">
+                      {details.join(" · ")}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={removingEntryId === entry.id}
+                  onClick={() => void removeFromCollection(entry)}
+                  className="rounded-lg border border-red-500/35 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-200 transition hover:border-red-400 hover:bg-red-500/20 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {removingEntryId === entry.id ? "Suppression…" : "Retirer"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {message && (
+          <p aria-live="polite" className="mt-3 text-sm text-slate-300">
+            {message}
+          </p>
+        )}
+      </section>
+    );
+  }
+
   if (!isOpen) {
     return (
-      <button
-        type="button"
-        onClick={() => {
-          setIsOpen(true);
-          setMessage("");
-        }}
-        className="w-full rounded-xl bg-purple-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-purple-500"
-      >
-        + Ajouter à ma collection
-      </button>
+      <div className="grid gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setIsOpen(true);
+            setMessage("");
+          }}
+          className="w-full rounded-xl bg-purple-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-purple-500"
+        >
+          + Ajouter à ma collection
+        </button>
+
+        {message && (
+          <p aria-live="polite" className="text-sm text-slate-300">
+            {message}
+          </p>
+        )}
+      </div>
     );
   }
 
@@ -365,7 +592,11 @@ export default function AddToCollectionButton({
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-bold text-white">Ajouter à ma collection</h2>
+          <h2 className="font-bold text-white">
+            {collectionEntries.length > 0
+              ? "Ajouter une autre version"
+              : "Ajouter à ma collection"}
+          </h2>
           <p className="mt-1 text-xs text-slate-500">
             Choisis la version que tu possèdes ou souhaites suivre.
           </p>
