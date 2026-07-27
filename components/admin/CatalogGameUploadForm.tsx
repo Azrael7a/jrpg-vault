@@ -65,7 +65,9 @@ export default function CatalogGameUploadForm({
   initialPlatforms,
 }: Props) {
   const firstPlatformId = platforms[0]?.id ?? 0;
-  const [mainCoverUrl, setMainCoverUrl] = useState(initialGame?.cover_url ?? "");
+  const [catalogCoverUrl, setCatalogCoverUrl] = useState(
+    initialGame?.cover_url ?? "",
+  );
   const [uploadingKeys, setUploadingKeys] = useState<string[]>([]);
   const [catalogPlatforms, setCatalogPlatforms] = useState<
     CatalogPlatformValue[]
@@ -130,6 +132,21 @@ export default function CatalogGameUploadForm({
     );
   }
 
+  function updateVersionCover(key: string, url: string) {
+    const currentVersion = catalogPlatforms.find(
+      (platform) => platform.key === key,
+    );
+    const wasCatalogDefault =
+      Boolean(currentVersion?.cover_url) &&
+      currentVersion?.cover_url === catalogCoverUrl;
+
+    updatePlatform(key, "cover_url", url);
+
+    if (wasCatalogDefault) {
+      setCatalogCoverUrl(url);
+    }
+  }
+
   function addPlatform() {
     if (!firstPlatformId) {
       return;
@@ -142,6 +159,17 @@ export default function CatalogGameUploadForm({
   }
 
   function removePlatform(key: string) {
+    const removedVersion = catalogPlatforms.find(
+      (platform) => platform.key === key,
+    );
+
+    if (
+      removedVersion?.cover_url &&
+      removedVersion.cover_url === catalogCoverUrl
+    ) {
+      setCatalogCoverUrl("");
+    }
+
     setCatalogPlatforms((current) =>
       current.length === 1
         ? current
@@ -228,17 +256,27 @@ export default function CatalogGameUploadForm({
             />
           </label>
 
-          <div className="md:col-span-2">
-            <input type="hidden" name="cover_url" value={mainCoverUrl} />
+          <div className="md:col-span-2 rounded-2xl border border-purple-500/30 bg-purple-500/5 p-4">
+            <input type="hidden" name="cover_url" value={catalogCoverUrl} />
+            <div className="mb-4">
+              <p className="text-sm font-semibold uppercase tracking-wide text-purple-300">
+                Jaquette par défaut du catalogue
+              </p>
+              <p className="mt-1 text-sm text-slate-400">
+                C’est cette image qui apparaît dans le catalogue et à l’ouverture
+                de la fiche du jeu. Tu peux importer une image dédiée ici ou
+                choisir plus bas la jaquette d’une version.
+              </p>
+            </div>
             <CoverImageUploader
-              value={mainCoverUrl}
-              onChange={setMainCoverUrl}
-              label="Jaquette principale"
-              helperText="Utilisée par défaut dans le catalogue et pour les versions sans jaquette spécifique."
-              folder="main"
-              previewAlt="Aperçu de la jaquette principale"
+              value={catalogCoverUrl}
+              onChange={setCatalogCoverUrl}
+              label="Image utilisée par défaut"
+              helperText="Elle reste affichée tant que le visiteur ne choisit pas une autre console ou région."
+              folder="catalog-defaults"
+              previewAlt="Aperçu de la jaquette par défaut du catalogue"
               onUploadingChange={(uploading) =>
-                setUploadState("main-cover", uploading)
+                setUploadState("catalog-cover", uploading)
               }
             />
           </div>
@@ -264,7 +302,8 @@ export default function CatalogGameUploadForm({
             <h2 className="text-2xl font-bold">Versions disponibles</h2>
             <p className="mt-1 text-sm text-slate-400">
               Chaque combinaison support + région peut posséder sa propre
-              jaquette. Ces versions servent aussi aux filtres et à la collection.
+              jaquette. Une de ces images peut être désignée comme jaquette par
+              défaut du catalogue.
             </p>
           </div>
 
@@ -288,11 +327,18 @@ export default function CatalogGameUploadForm({
               const platformName =
                 platformNames.get(catalogPlatform.platform_id) ?? "plateforme";
               const uploadKey = `version-cover-${catalogPlatform.key}`;
+              const isCatalogDefault =
+                Boolean(catalogPlatform.cover_url) &&
+                catalogPlatform.cover_url === catalogCoverUrl;
 
               return (
                 <div
                   key={catalogPlatform.key}
-                  className="grid gap-4 rounded-xl border border-slate-700 bg-slate-950/40 p-4 md:grid-cols-2 xl:grid-cols-4"
+                  className={`grid gap-4 rounded-xl border p-4 md:grid-cols-2 xl:grid-cols-4 ${
+                    isCatalogDefault
+                      ? "border-purple-400 bg-purple-500/10"
+                      : "border-slate-700 bg-slate-950/40"
+                  }`}
                 >
                   <label className="grid gap-2">
                     <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -425,16 +471,39 @@ export default function CatalogGameUploadForm({
                     <CoverImageUploader
                       value={catalogPlatform.cover_url}
                       onChange={(url) =>
-                        updatePlatform(catalogPlatform.key, "cover_url", url)
+                        updateVersionCover(catalogPlatform.key, url)
                       }
                       label={`Jaquette ${platformName} · ${catalogPlatform.region}`}
-                      helperText="Cette image sera affichée lorsque cette console et cette région sont sélectionnées."
+                      helperText="Cette image sera affichée lorsque cette console et cette région sont choisies sur la fiche."
                       folder={`versions/${platformName}/${catalogPlatform.region}`}
                       previewAlt={`Aperçu de la jaquette ${platformName} ${catalogPlatform.region}`}
                       onUploadingChange={(uploading) =>
                         setUploadState(uploadKey, uploading)
                       }
                     />
+
+                    {catalogPlatform.cover_url && (
+                      <div className="mt-3 flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          disabled={isCatalogDefault || isUploading}
+                          onClick={() =>
+                            setCatalogCoverUrl(catalogPlatform.cover_url)
+                          }
+                          className="jrpg-button-secondary px-4 py-2 disabled:cursor-default disabled:opacity-60"
+                        >
+                          {isCatalogDefault
+                            ? "Jaquette par défaut actuelle"
+                            : "Utiliser par défaut dans le catalogue"}
+                        </button>
+
+                        {isCatalogDefault && (
+                          <span className="rounded-full border border-purple-400/50 bg-purple-500/10 px-3 py-1 text-xs font-semibold text-purple-200">
+                            Visible dans le catalogue
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-end justify-end">
