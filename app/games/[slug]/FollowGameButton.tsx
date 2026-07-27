@@ -37,7 +37,7 @@ export default function FollowGameButton({
         .eq("game_id", gameId);
 
       if (error) {
-        setMessage(error.message);
+        setMessage("Impossible de retirer ce jeu des suivis.");
         setIsLoading(false);
         return;
       }
@@ -51,7 +51,7 @@ export default function FollowGameButton({
       });
 
       if (error) {
-        setMessage(error.message);
+        setMessage("Impossible de suivre ce jeu pour le moment.");
         setIsLoading(false);
         return;
       }
@@ -64,25 +64,29 @@ export default function FollowGameButton({
   }
 
   return (
-    <div className="grid gap-2">
+    <div className="grid content-start gap-2">
       <button
         type="button"
         onClick={toggleFollow}
         disabled={isLoading}
         className={
           isFollowed
-            ? "w-full rounded border border-purple-500 bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-500 disabled:opacity-50"
-            : "w-full rounded border px-4 py-2 text-sm font-medium hover:bg-gray-100 disabled:opacity-50"
+            ? "w-full rounded-xl border border-purple-400 bg-purple-500/15 px-5 py-3 text-sm font-bold text-purple-100 transition hover:bg-purple-500/25 disabled:opacity-50"
+            : "w-full rounded-xl border border-slate-700 bg-slate-900/70 px-5 py-3 text-sm font-bold text-slate-200 transition hover:border-purple-400 hover:text-purple-100 disabled:opacity-50"
         }
       >
         {isLoading
-          ? "Chargement..."
+          ? "Mise à jour…"
           : isFollowed
-            ? "★ Suivi"
+            ? "★ Jeu suivi"
             : "☆ Suivre ce jeu"}
       </button>
 
-      {message && <p className="text-xs text-gray-500">{message}</p>}
+      {message && (
+        <p aria-live="polite" className="text-xs text-slate-400">
+          {message}
+        </p>
+      )}
     </div>
   );
 }
