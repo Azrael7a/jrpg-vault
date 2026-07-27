@@ -70,6 +70,10 @@ function getInitialFormat(version: AvailableVersion) {
   return "physical";
 }
 
+function getVersionKey(version: AvailableVersion) {
+  return `${version.platform.id}:${version.region}`;
+}
+
 export default function AddToCollectionButton({
   gameId,
 }: {
@@ -90,6 +94,7 @@ export default function AddToCollectionButton({
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingPlatforms, setIsLoadingPlatforms] = useState(true);
+  const [activeCoverKey, setActiveCoverKey] = useState<string | null>(null);
 
   useEffect(() => {
     const form = formRef.current;
@@ -98,10 +103,7 @@ export default function AddToCollectionButton({
 
     if (coverContainer instanceof HTMLElement) {
       coverContainerRef.current = coverContainer;
-
-      if (originalCoverMarkupRef.current === null) {
-        originalCoverMarkupRef.current = coverContainer.innerHTML;
-      }
+      originalCoverMarkupRef.current = coverContainer.innerHTML;
     }
 
     return () => {
@@ -109,7 +111,7 @@ export default function AddToCollectionButton({
         coverContainerRef.current.innerHTML = originalCoverMarkupRef.current;
       }
     };
-  }, [isLoadingPlatforms]);
+  }, []);
 
   useEffect(() => {
     async function loadPlatforms() {
@@ -188,7 +190,7 @@ export default function AddToCollectionButton({
       setIsLoadingPlatforms(false);
     }
 
-    loadPlatforms();
+    void loadPlatforms();
   }, [gameId, supabase]);
 
   const platforms = useMemo(
@@ -226,7 +228,18 @@ export default function AddToCollectionButton({
   );
 
   const coverVersions = useMemo(
-    () => availableVersions.filter((version) => Boolean(version.coverUrl)),
+    () =>
+      availableVersions
+        .filter((version) => Boolean(version.coverUrl))
+        .sort((a, b) => {
+          const platformComparison = comparePlatforms(a.platform, b.platform);
+
+          if (platformComparison !== 0) {
+            return platformComparison;
+          }
+
+          return a.region.localeCompare(b.region, "fr");
+        }),
     [availableVersions],
   );
 
@@ -278,20 +291,30 @@ export default function AddToCollectionButton({
       return;
     }
 
-    if (!selectedVersion?.coverUrl) {
+    if (!activeCoverKey) {
+      coverContainer.innerHTML = originalCoverMarkupRef.current;
+      return;
+    }
+
+    const activeVersion = coverVersions.find(
+      (version) => getVersionKey(version) === activeCoverKey,
+    );
+
+    if (!activeVersion?.coverUrl) {
       coverContainer.innerHTML = originalCoverMarkupRef.current;
       return;
     }
 
     const image = document.createElement("img");
-    image.src = selectedVersion.coverUrl;
-    image.alt = `Jaquette ${selectedVersion.platform.name} ${selectedVersion.region}`;
+    image.src = activeVersion.coverUrl;
+    image.alt = `Jaquette ${activeVersion.platform.name} ${activeVersion.region}`;
     image.className = "aspect-[3/4] w-full object-cover";
 
     coverContainer.replaceChildren(image);
-  }, [selectedVersion]);
+  }, [activeCoverKey, coverVersions]);
 
-  function selectVersion(version: AvailableVersion) {
+  function selectCoverVersion(version: AvailableVersion) {
+    setActiveCoverKey(getVersionKey(version));
     setPlatformId(String(version.platform.id));
     setRegion(version.region);
     setFormat(getInitialFormat(version));
@@ -394,38 +417,43 @@ export default function AddToCollectionButton({
       {coverVersions.length > 0 && (
         <div className="mb-5 border-b border-slate-800 pb-5">
           <p className="text-sm font-semibold text-slate-200">
-            Jaquettes disponibles
+            Choisir la jaquette affichée
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            Choisis une console et une région pour afficher sa jaquette.
+            La fiche s’ouvre sur la jaquette par défaut du catalogue.
           </p>
 
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveCoverKey(null)}
+              aria-pressed={activeCoverKey === null}
+              className={`rounded-full border px-3 py-2 text-sm font-medium transition ${
+                activeCoverKey === null
+                  ? "border-purple-400 bg-purple-500/15 text-purple-100"
+                  : "border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-500"
+              }`}
+            >
+              Jaquette par défaut
+            </button>
+
             {coverVersions.map((version) => {
-              const isSelected =
-                version.platform.id === Number(platformId) &&
-                version.region === region;
+              const versionKey = getVersionKey(version);
+              const isSelected = activeCoverKey === versionKey;
 
               return (
                 <button
-                  key={`${version.platform.id}-${version.region}`}
+                  key={versionKey}
                   type="button"
-                  onClick={() => selectVersion(version)}
+                  onClick={() => selectCoverVersion(version)}
                   aria-pressed={isSelected}
-                  className={`overflow-hidden rounded-xl border text-left transition ${
+                  className={`rounded-full border px-3 py-2 text-sm font-medium transition ${
                     isSelected
-                      ? "border-purple-400 bg-purple-500/10"
-                      : "border-slate-700 bg-slate-950 hover:border-slate-500"
+                      ? "border-purple-400 bg-purple-500/15 text-purple-100"
+                      : "border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-500"
                   }`}
                 >
-                  <img
-                    src={version.coverUrl ?? ""}
-                    alt={`Jaquette ${version.platform.name} ${version.region}`}
-                    className="aspect-[3/4] w-full object-cover"
-                  />
-                  <span className="block px-2 py-2 text-xs font-medium text-slate-200">
-                    {version.platform.name} · {version.region}
-                  </span>
+                  {version.platform.name} · {version.region}
                 </button>
               );
             })}
