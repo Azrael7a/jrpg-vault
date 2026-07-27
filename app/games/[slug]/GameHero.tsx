@@ -157,12 +157,12 @@ export default function GameHero({
                   Versions de la jaquette
                 </p>
 
-                <div className="mt-2 flex flex-nowrap gap-2 overflow-x-auto pb-2">
+                <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={selectDefaultCover}
                     aria-pressed={activeCoverKey === null}
-                    className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                    className={`whitespace-nowrap rounded-full border px-3 py-2 text-xs font-semibold transition ${
                       activeCoverKey === null
                         ? "border-purple-400 bg-purple-500/15 text-purple-100"
                         : "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500"
@@ -180,7 +180,7 @@ export default function GameHero({
                         type="button"
                         onClick={() => selectCover(option)}
                         aria-pressed={isActive}
-                        className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                        className={`whitespace-nowrap rounded-full border px-3 py-2 text-xs font-semibold transition ${
                           isActive
                             ? "border-purple-400 bg-purple-500/15 text-purple-100"
                             : "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500"
