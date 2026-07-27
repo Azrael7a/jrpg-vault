@@ -20,6 +20,8 @@
       }
     ],
     "paths": {
+      "@/utils/supabase/client": ["./lib/supabase/client"],
+      "@/utils/supabase/server": ["./lib/supabase/server"],
       "@/*": ["./*"]
     }
   },
