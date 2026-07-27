@@ -1,5 +1,5 @@
 import Link from "next/link";
-import CatalogGameForm from "@/components/admin/CatalogGameForm";
+import CatalogGameUploadForm from "@/components/admin/CatalogGameUploadForm";
 import { createCatalogGame } from "../actions";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 
@@ -56,7 +56,7 @@ export default async function NewCatalogGamePage({
         </p>
       )}
 
-      <CatalogGameForm
+      <CatalogGameUploadForm
         action={createCatalogGame}
         platforms={platforms}
         submitLabel="Ajouter au catalogue"
