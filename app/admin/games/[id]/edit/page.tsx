@@ -26,6 +26,7 @@ type GamePlatformRelation = {
   physical: boolean | null;
   digital: boolean | null;
   edition_name: string | null;
+  cover_url: string | null;
   platforms: PlatformRelation | PlatformRelation[] | null;
 };
 
@@ -107,6 +108,7 @@ export default async function EditCatalogGamePage({
               physical,
               digital,
               edition_name,
+              cover_url,
               platforms (
                 id,
                 name
@@ -152,6 +154,7 @@ export default async function EditCatalogGamePage({
           release_date: gamePlatform.release_date ?? "",
           release_format: getFormat(gamePlatform),
           edition_name: gamePlatform.edition_name ?? "",
+          cover_url: gamePlatform.cover_url ?? "",
         };
       })
       .filter(
@@ -173,7 +176,8 @@ export default async function EditCatalogGamePage({
         <p className="jrpg-badge">Administration</p>
         <h1 className="mt-4 text-4xl font-bold">Modifier {game.title}</h1>
         <p className="mt-3 text-slate-400">
-          Modifie la fiche et les versions proposées dans la collection.
+          Modifie la fiche, les versions proposées dans la collection et leurs
+          jaquettes régionales.
         </p>
       </div>
 
