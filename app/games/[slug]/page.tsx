@@ -91,6 +91,14 @@ type RelatedNews = {
   published_at: string | null;
 };
 
+type RelatedSeriesGame = {
+  id: number;
+  title: string;
+  slug: string;
+  cover_url: string | null;
+  release_year: number | null;
+};
+
 type InformationItem = {
   label: string;
   value: string;
@@ -201,7 +209,10 @@ function formatShortDate(date: string | null) {
   return new Date(date).toLocaleDateString("fr-FR");
 }
 
-function formatReleaseFormat(physical: boolean | null, digital: boolean | null) {
+function formatReleaseFormat(
+  physical: boolean | null,
+  digital: boolean | null,
+) {
   if (physical && digital) {
     return "Physique + numérique";
   }
@@ -375,9 +386,14 @@ export default async function GamePage({
       `,
     )
     .eq("slug", slug)
-    .single();
+    .maybeSingle();
 
-  if (error || !data) {
+  if (error) {
+    console.error("Impossible de charger la fiche du jeu :", error);
+    throw new Error("Impossible de charger la fiche du jeu.");
+  }
+
+  if (!data) {
     notFound();
   }
 
@@ -435,8 +451,11 @@ export default async function GamePage({
       .filter((item) => item.platform);
   }
 
-  const now = new Date().toISOString();
-  const { data: relatedNewsData } = await supabase
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const today = nowIso.slice(0, 10);
+
+  const relatedNewsPromise = supabase
     .from("news")
     .select(
       `
@@ -453,11 +472,26 @@ export default async function GamePage({
     .eq("related_game_id", game.id)
     .eq("status", "published")
     .not("published_at", "is", null)
-    .lte("published_at", now)
+    .lte("published_at", nowIso)
     .order("published_at", { ascending: false })
     .limit(3);
 
+  const sameSeriesPromise = game.series?.trim()
+    ? supabase
+        .from("games")
+        .select("id, title, slug, cover_url, release_year")
+        .eq("series", game.series)
+        .neq("id", game.id)
+        .order("release_year", { ascending: true })
+        .limit(6)
+    : Promise.resolve({ data: [] as RelatedSeriesGame[], error: null });
+
+  const [{ data: relatedNewsData }, { data: sameSeriesData }] =
+    await Promise.all([relatedNewsPromise, sameSeriesPromise]);
+
   const relatedNews = (relatedNewsData ?? []) as RelatedNews[];
+  const sameSeriesGames = (sameSeriesData ?? []) as RelatedSeriesGame[];
+
   const tags =
     game.game_tags
       ?.map((relation) => normalizeRelation(relation.tags))
@@ -509,30 +543,23 @@ export default async function GamePage({
     ),
   );
 
-  const firstReleaseDate = [
-    ...gamePlatforms.map((version) => version.release_date),
-    ...releases.map((release) => release.release_date),
-  ]
-    .filter((date): date is string => Boolean(date))
-    .sort()[0] ?? null;
+  const firstReleaseDate =
+    [
+      ...gamePlatforms.map((version) => version.release_date),
+      ...releases.map((release) => release.release_date),
+    ]
+      .filter((date): date is string => Boolean(date))
+      .sort()[0] ?? null;
 
   const defaultCoverUrl = game.cover_url ?? coverOptions[0]?.coverUrl ?? null;
 
-  const primaryInformation: InformationItem[] = [
+  const jrpgInformation: InformationItem[] = [
     game.original_title
       ? { label: "Titre original", value: game.original_title }
       : null,
     game.country_of_origin
       ? { label: "Origine", value: game.country_of_origin }
       : null,
-    firstReleaseDate
-      ? { label: "Première sortie", value: formatDate(firstReleaseDate) ?? "" }
-      : game.release_year
-        ? { label: "Première sortie", value: String(game.release_year) }
-        : null,
-    game.developer ? { label: "Développeur", value: game.developer } : null,
-    game.publisher ? { label: "Éditeur", value: game.publisher } : null,
-    game.series ? { label: "Série", value: game.series } : null,
     labelValue(game.game_mode, gameModeLabels)
       ? {
           label: "Mode de jeu",
@@ -548,9 +575,6 @@ export default async function GamePage({
     game.available_languages
       ? { label: "Langues", value: game.available_languages }
       : null,
-  ].filter((item): item is InformationItem => Boolean(item?.value));
-
-  const jrpgInformation: InformationItem[] = [
     labelValue(game.battle_system, battleSystemLabels)
       ? {
           label: "Système de combat",
@@ -608,6 +632,7 @@ export default async function GamePage({
     }
 
     const key = `${platformName}:${version.region ?? ""}:${version.release_date ?? ""}:${version.edition_name ?? ""}`;
+
     availabilityByKey.set(key, {
       key: `platform-${version.id}`,
       platformName,
@@ -650,11 +675,27 @@ export default async function GamePage({
     });
   });
 
-  const availabilityRows = Array.from(availabilityByKey.values()).sort((a, b) => {
-    const dateA = a.releaseDate ?? "9999-12-31";
-    const dateB = b.releaseDate ?? "9999-12-31";
-    return dateA.localeCompare(dateB) || a.platformName.localeCompare(b.platformName, "fr");
-  });
+  const availabilityRows = Array.from(availabilityByKey.values()).sort(
+    (a, b) => {
+      const dateA = a.releaseDate ?? "9999-12-31";
+      const dateB = b.releaseDate ?? "9999-12-31";
+
+      return (
+        dateA.localeCompare(dateB) ||
+        a.platformName.localeCompare(b.platformName, "fr")
+      );
+    },
+  );
+
+  const upcomingReleases = availabilityRows.filter(
+    (row) =>
+      Boolean(row.releaseDate) &&
+      (row.releaseDate as string) >= today &&
+      row.status !== "released",
+  );
+
+  const hasSidebar =
+    collectionEntries.length > 0 || sameSeriesGames.length > 0;
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -674,40 +715,14 @@ export default async function GamePage({
         initialIsFollowed={isFollowed}
       />
 
-      <section className="mx-auto grid w-full max-w-7xl gap-8 px-5 py-10 sm:px-8 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <section
+        className={`mx-auto grid w-full max-w-7xl gap-8 px-5 py-10 sm:px-8 ${
+          hasSidebar
+            ? "xl:grid-cols-[minmax(0,1fr)_340px]"
+            : "max-w-5xl"
+        }`}
+      >
         <div className="grid content-start gap-8">
-          {primaryInformation.length > 0 && (
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/65 p-6 sm:p-8">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-400">
-                Fiche technique
-              </p>
-              <h2 className="mt-2 text-2xl font-bold text-white">
-                Informations principales
-              </h2>
-              <div className="mt-6">
-                <DetailsGrid items={primaryInformation} />
-              </div>
-            </section>
-          )}
-
-          {jrpgInformation.length > 0 && (
-            <section className="rounded-2xl border border-purple-500/25 bg-gradient-to-br from-slate-900/80 to-purple-950/25 p-6 sm:p-8">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-400">
-                Identité du jeu
-              </p>
-              <h2 className="mt-2 text-2xl font-bold text-white">
-                Informations JRPG
-              </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                Les éléments qui définissent sa structure de jeu, sa progression et
-                sa narration.
-              </p>
-              <div className="mt-6">
-                <DetailsGrid items={jrpgInformation} />
-              </div>
-            </section>
-          )}
-
           {game.description && (
             <article className="rounded-2xl border border-slate-800 bg-slate-900/65 p-6 sm:p-8">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-400">
@@ -722,15 +737,15 @@ export default async function GamePage({
             </article>
           )}
 
-          {availabilityRows.length > 0 && (
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/65 p-6 sm:p-8">
+          {upcomingReleases.length > 0 && (
+            <section className="rounded-2xl border border-purple-500/30 bg-gradient-to-br from-slate-900/85 to-purple-950/25 p-6 sm:p-8">
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-400">
-                    Disponibilité
+                    Calendrier
                   </p>
                   <h2 className="mt-2 text-2xl font-bold text-white">
-                    Versions et historique des sorties
+                    Prochaines sorties
                   </h2>
                 </div>
                 <Link
@@ -741,43 +756,45 @@ export default async function GamePage({
                 </Link>
               </div>
 
-              <div className="mt-6 overflow-x-auto rounded-xl border border-slate-800">
-                <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-                  <thead className="bg-slate-950 text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-4 py-3 font-semibold">Plateforme</th>
-                      <th className="px-4 py-3 font-semibold">Région</th>
-                      <th className="px-4 py-3 font-semibold">Date</th>
-                      <th className="px-4 py-3 font-semibold">Format</th>
-                      <th className="px-4 py-3 font-semibold">Édition</th>
-                      <th className="px-4 py-3 font-semibold">Statut</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 bg-slate-950/65">
-                    {availabilityRows.map((row) => (
-                      <tr key={row.key}>
-                        <td className="px-4 py-4 font-semibold text-white">
-                          {row.platformName}
-                        </td>
-                        <td className="px-4 py-4 text-slate-300">
-                          {row.region ?? "—"}
-                        </td>
-                        <td className="px-4 py-4 text-slate-300">
-                          {formatShortDate(row.releaseDate)}
-                        </td>
-                        <td className="px-4 py-4 text-slate-300">
-                          {formatReleaseFormat(row.physical, row.digital)}
-                        </td>
-                        <td className="px-4 py-4 text-slate-300">
-                          {row.editionName || "Standard"}
-                        </td>
-                        <td className="px-4 py-4 text-slate-300">
-                          {formatStatus(row.status) ?? "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                {upcomingReleases.map((release) => (
+                  <div
+                    key={`upcoming-${release.key}`}
+                    className="rounded-xl border border-slate-700 bg-slate-950/75 p-5"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-bold text-white">
+                          {release.platformName}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-400">
+                          {[
+                            release.region,
+                            formatReleaseFormat(
+                              release.physical,
+                              release.digital,
+                            ),
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      {formatStatus(release.status) && (
+                        <span className="rounded-full border border-purple-500/35 bg-purple-500/10 px-3 py-1 text-xs font-semibold text-purple-200">
+                          {formatStatus(release.status)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-4 text-lg font-bold text-white">
+                      {formatDate(release.releaseDate)}
+                    </p>
+                    {release.editionName && (
+                      <p className="mt-1 text-sm text-slate-400">
+                        Édition {release.editionName}
+                      </p>
+                    )}
+                  </div>
+                ))}
               </div>
             </section>
           )}
@@ -790,7 +807,7 @@ export default async function GamePage({
                     Actualités
                   </p>
                   <h2 className="mt-2 text-2xl font-bold text-white">
-                    News liées au jeu
+                    News liées à {game.title}
                   </h2>
                 </div>
                 <Link
@@ -842,75 +859,170 @@ export default async function GamePage({
               </div>
             </section>
           )}
-        </div>
 
-        <aside className="grid content-start gap-6">
-          {collectionEntries.length > 0 && (
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/65 p-6">
+          {jrpgInformation.length > 0 && (
+            <section className="rounded-2xl border border-purple-500/25 bg-gradient-to-br from-slate-900/80 to-purple-950/25 p-6 sm:p-8">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-400">
-                Mon Vault
+                Identité du jeu
               </p>
-              <h2 className="mt-2 text-xl font-bold text-white">
-                Dans ma collection
+              <h2 className="mt-2 text-2xl font-bold text-white">
+                Profil JRPG
               </h2>
-
-              <div className="mt-5 grid gap-3">
-                {collectionEntries.map((entry) => {
-                  const collectionFormat = formatCollectionFormat(entry.format);
-
-                  return (
-                    <div
-                      key={entry.id}
-                      className="rounded-xl border border-slate-800 bg-slate-950/75 p-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-semibold text-white">
-                          {entry.platform?.name ?? "Plateforme"}
-                        </span>
-                        <span className="text-sm font-bold text-purple-200">
-                          {formatCollectionStatus(entry.status)}
-                        </span>
-                      </div>
-                      {(collectionFormat || entry.region) && (
-                        <p className="mt-3 text-sm text-slate-400">
-                          {[collectionFormat, entry.region]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="mt-6">
+                <DetailsGrid items={jrpgInformation} />
               </div>
             </section>
           )}
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/65 p-6">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-400">
-              Continuer
-            </p>
-            <div className="mt-4 grid gap-3">
-              <Link
-                href="/games"
-                className="rounded-xl border border-slate-800 bg-slate-950/75 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-purple-500"
-              >
-                Explorer le catalogue
-              </Link>
-              <Link
-                href="/collection"
-                className="rounded-xl border border-slate-800 bg-slate-950/75 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-purple-500"
-              >
-                Voir ma collection
-              </Link>
-              <Link
-                href="/releases"
-                className="rounded-xl border border-slate-800 bg-slate-950/75 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-purple-500"
-              >
-                Calendrier des sorties
-              </Link>
-            </div>
-          </section>
-        </aside>
+          {availabilityRows.length > 0 && (
+            <section className="rounded-2xl border border-slate-800 bg-slate-900/65 p-6 sm:p-8">
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-400">
+                    Disponibilité
+                  </p>
+                  <h2 className="mt-2 text-2xl font-bold text-white">
+                    Versions disponibles
+                  </h2>
+                </div>
+                <Link
+                  href="/releases"
+                  className="text-sm text-purple-300 hover:text-purple-200"
+                >
+                  Voir le calendrier →
+                </Link>
+              </div>
+
+              <div className="mt-6 overflow-x-auto rounded-xl border border-slate-800">
+                <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                  <thead className="bg-slate-950 text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Plateforme</th>
+                      <th className="px-4 py-3 font-semibold">Région</th>
+                      <th className="px-4 py-3 font-semibold">Date</th>
+                      <th className="px-4 py-3 font-semibold">Format</th>
+                      <th className="px-4 py-3 font-semibold">Édition</th>
+                      <th className="px-4 py-3 font-semibold">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 bg-slate-950/65">
+                    {availabilityRows.map((row) => (
+                      <tr key={row.key}>
+                        <td className="px-4 py-4 font-semibold text-white">
+                          {row.platformName}
+                        </td>
+                        <td className="px-4 py-4 text-slate-300">
+                          {row.region ?? "—"}
+                        </td>
+                        <td className="px-4 py-4 text-slate-300">
+                          {formatShortDate(row.releaseDate)}
+                        </td>
+                        <td className="px-4 py-4 text-slate-300">
+                          {formatReleaseFormat(row.physical, row.digital)}
+                        </td>
+                        <td className="px-4 py-4 text-slate-300">
+                          {row.editionName || "Standard"}
+                        </td>
+                        <td className="px-4 py-4 text-slate-300">
+                          {formatStatus(row.status) ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </div>
+
+        {hasSidebar && (
+          <aside className="grid content-start gap-6">
+            {sameSeriesGames.length > 0 && (
+              <section className="rounded-2xl border border-purple-500/25 bg-slate-900/65 p-6">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-400">
+                  Même série
+                </p>
+                <h2 className="mt-2 text-xl font-bold text-white">
+                  Continuer la série {game.series}
+                </h2>
+
+                <div className="mt-5 grid gap-3">
+                  {sameSeriesGames.map((relatedGame) => (
+                    <Link
+                      key={relatedGame.id}
+                      href={`/games/${relatedGame.slug}`}
+                      className="group grid grid-cols-[64px_minmax(0,1fr)] items-center gap-4 rounded-xl border border-slate-800 bg-slate-950/75 p-3 transition hover:border-purple-500"
+                    >
+                      <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-lg bg-slate-900">
+                        {relatedGame.cover_url ? (
+                          <img
+                            src={relatedGame.cover_url}
+                            alt={`Jaquette de ${relatedGame.title}`}
+                            className="h-full w-full object-contain"
+                          />
+                        ) : (
+                          <span className="px-2 text-center text-[10px] font-semibold text-purple-300">
+                            JRPG Vault
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="line-clamp-2 font-semibold text-white transition group-hover:text-purple-200">
+                          {relatedGame.title}
+                        </h3>
+                        {relatedGame.release_year && (
+                          <p className="mt-1 text-sm text-slate-500">
+                            {relatedGame.release_year}
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {collectionEntries.length > 0 && (
+              <section className="rounded-2xl border border-slate-800 bg-slate-900/65 p-6">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-400">
+                  Mon Vault
+                </p>
+                <h2 className="mt-2 text-xl font-bold text-white">
+                  Dans ma collection
+                </h2>
+
+                <div className="mt-5 grid gap-3">
+                  {collectionEntries.map((entry) => {
+                    const collectionFormat = formatCollectionFormat(entry.format);
+
+                    return (
+                      <div
+                        key={entry.id}
+                        className="rounded-xl border border-slate-800 bg-slate-950/75 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-semibold text-white">
+                            {entry.platform?.name ?? "Plateforme"}
+                          </span>
+                          <span className="text-sm font-bold text-purple-200">
+                            {formatCollectionStatus(entry.status)}
+                          </span>
+                        </div>
+                        {(collectionFormat || entry.region) && (
+                          <p className="mt-3 text-sm text-slate-400">
+                            {[collectionFormat, entry.region]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+          </aside>
+        )}
       </section>
     </main>
   );
