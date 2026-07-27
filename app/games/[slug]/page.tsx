@@ -56,6 +56,17 @@ type Game = {
   series: string | null;
   cover_url: string | null;
   release_year: number | null;
+  original_title: string | null;
+  country_of_origin: string | null;
+  game_mode: string | null;
+  battle_system: string | null;
+  party_structure: string | null;
+  progression_system: string | null;
+  narrative_structure: string | null;
+  exploration_style: string | null;
+  difficulty: string | null;
+  main_story_hours: number | null;
+  available_languages: string | null;
   game_tags: TagRelation[] | null;
   game_platforms: GamePlatformRelation[] | null;
   game_releases: ReleaseRelation[] | null;
@@ -80,11 +91,83 @@ type RelatedNews = {
   published_at: string | null;
 };
 
+type InformationItem = {
+  label: string;
+  value: string;
+};
+
+type AvailabilityRow = {
+  key: string;
+  platformName: string;
+  region: string | null;
+  releaseDate: string | null;
+  physical: boolean | null;
+  digital: boolean | null;
+  editionName: string | null;
+  status: string | null;
+};
+
 const validRegions: Region[] = ["PAL", "US", "JAP", "ASIA", "WORLD"];
 
-function isRegion(value: string | null): value is Region {
-  return Boolean(value && validRegions.includes(value as Region));
-}
+const gameModeLabels: Record<string, string> = {
+  solo: "Solo",
+  multiplayer: "Multijoueur",
+  solo_multiplayer: "Solo et multijoueur",
+  online: "Principalement en ligne",
+};
+
+const battleSystemLabels: Record<string, string> = {
+  turn_based: "Tour par tour",
+  active_time: "Temps actif / ATB",
+  action: "Action en temps réel",
+  tactical: "Tactique au tour par tour",
+  real_time: "Temps réel",
+  hybrid: "Hybride",
+  other: "Autre système",
+};
+
+const partyStructureLabels: Record<string, string> = {
+  fixed_party: "Groupe prédéfini",
+  recruitable_party: "Personnages recrutables",
+  customizable_party: "Groupe personnalisable",
+  solo_character: "Personnage unique",
+  rotating_party: "Groupe tournant",
+  other: "Autre structure",
+};
+
+const progressionSystemLabels: Record<string, string> = {
+  levels_equipment: "Niveaux et équipement",
+  jobs: "Classes et métiers",
+  skill_tree: "Arbres de compétences",
+  crafting: "Artisanat et équipement",
+  hybrid: "Système hybride",
+  other: "Autre progression",
+};
+
+const narrativeStructureLabels: Record<string, string> = {
+  linear: "Linéaire",
+  branching: "À embranchements",
+  episodic: "Épisodique",
+  open: "Ouverte",
+  other: "Autre structure",
+};
+
+const explorationStyleLabels: Record<string, string> = {
+  world_map: "Carte du monde",
+  zones: "Zones reliées",
+  open_world: "Monde ouvert",
+  hubs: "Hubs et missions",
+  dungeon_crawler: "Donjons / dungeon crawler",
+  other: "Autre exploration",
+};
+
+const difficultyLabels: Record<string, string> = {
+  accessible: "Accessible",
+  standard: "Standard",
+  demanding: "Exigeante",
+  customizable: "Personnalisable",
+  other: "Variable",
+};
 
 function normalizeRelation<T>(relation: T | T[] | null): T | null {
   if (Array.isArray(relation)) {
@@ -94,9 +177,13 @@ function normalizeRelation<T>(relation: T | T[] | null): T | null {
   return relation;
 }
 
+function isRegion(value: string | null): value is Region {
+  return Boolean(value && validRegions.includes(value as Region));
+}
+
 function formatDate(date: string | null) {
   if (!date) {
-    return "Date inconnue";
+    return null;
   }
 
   return new Date(date).toLocaleDateString("fr-FR", {
@@ -104,6 +191,30 @@ function formatDate(date: string | null) {
     month: "long",
     year: "numeric",
   });
+}
+
+function formatShortDate(date: string | null) {
+  if (!date) {
+    return "—";
+  }
+
+  return new Date(date).toLocaleDateString("fr-FR");
+}
+
+function formatReleaseFormat(physical: boolean | null, digital: boolean | null) {
+  if (physical && digital) {
+    return "Physique + numérique";
+  }
+
+  if (physical) {
+    return "Physique";
+  }
+
+  if (digital) {
+    return "Numérique";
+  }
+
+  return "—";
 }
 
 function formatStatus(status: string | null) {
@@ -117,22 +228,7 @@ function formatStatus(status: string | null) {
     case "delayed":
       return "Repoussé";
     default:
-      return "Statut inconnu";
-  }
-}
-
-function getStatusClass(status: string | null) {
-  switch (status) {
-    case "released":
-      return "border-slate-600 bg-slate-800 text-slate-200";
-    case "confirmed":
-      return "border-green-500/40 bg-green-950/70 text-green-200";
-    case "rumor":
-      return "border-yellow-500/40 bg-yellow-950/70 text-yellow-200";
-    case "delayed":
-      return "border-orange-500/40 bg-orange-950/70 text-orange-200";
-    default:
-      return "border-slate-700 bg-slate-800 text-slate-300";
+      return null;
   }
 }
 
@@ -153,7 +249,7 @@ function formatCollectionStatus(status: string | null) {
     case "abandoned":
       return "Abandonné";
     default:
-      return "Statut inconnu";
+      return "Dans la collection";
   }
 }
 
@@ -166,67 +262,47 @@ function formatCollectionFormat(format: string | null) {
     case "both":
       return "Physique + numérique";
     default:
-      return "Format inconnu";
+      return null;
   }
 }
 
-function formatReleaseFormat(physical: boolean | null, digital: boolean | null) {
-  if (physical && digital) {
-    return "Physique + numérique";
+function getSummary(description: string | null) {
+  if (!description) {
+    return null;
   }
 
-  if (physical) {
-    return "Physique";
+  const normalized = description.replace(/\s+/g, " ").trim();
+
+  if (normalized.length <= 260) {
+    return normalized;
   }
 
-  if (digital) {
-    return "Numérique";
-  }
-
-  return "Format inconnu";
-}
-
-function normalizePlatformName(name: string) {
-  return name.toLowerCase().trim();
-}
-
-function getPlatformTagClass(platformName: string) {
-  const normalizedName = normalizePlatformName(platformName);
-
-  if (
-    normalizedName === "switch" ||
-    normalizedName === "nintendo switch" ||
-    normalizedName.includes("switch 2") ||
-    normalizedName.includes("switch2")
-  ) {
-    return "border-[#E60012] bg-[#E60012] text-white";
-  }
-
-  if (
-    normalizedName.includes("ps4") ||
-    normalizedName.includes("ps5") ||
-    normalizedName.includes("playstation")
-  ) {
-    return "border-[#0070CC] bg-[#0070CC] text-white";
-  }
-
-  if (normalizedName.includes("xbox")) {
-    return "border-[#107C10] bg-[#107C10] text-white";
-  }
-
-  if (
-    normalizedName === "pc" ||
-    normalizedName.includes("windows") ||
-    normalizedName.includes("steam")
-  ) {
-    return "border-black bg-black text-white";
-  }
-
-  return "border-slate-600 bg-slate-800 text-slate-200";
+  return `${normalized.slice(0, 257).trimEnd()}…`;
 }
 
 function getNewsText(news: RelatedNews) {
-  return news.excerpt ?? news.summary ?? "Aucun résumé disponible.";
+  return news.excerpt ?? news.summary ?? "";
+}
+
+function labelValue(value: string | null, labels: Record<string, string>) {
+  return value ? labels[value] ?? value : null;
+}
+
+function DetailsGrid({ items }: { items: InformationItem[] }) {
+  return (
+    <dl className="grid gap-px overflow-hidden rounded-xl border border-slate-800 bg-slate-800 sm:grid-cols-2">
+      {items.map((item) => (
+        <div key={item.label} className="bg-slate-950/85 p-5">
+          <dt className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            {item.label}
+          </dt>
+          <dd className="mt-2 text-base font-semibold leading-6 text-slate-100">
+            {item.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
 }
 
 export default async function GamePage({
@@ -250,6 +326,17 @@ export default async function GamePage({
         series,
         cover_url,
         release_year,
+        original_title,
+        country_of_origin,
+        game_mode,
+        battle_system,
+        party_structure,
+        progression_system,
+        narrative_structure,
+        exploration_style,
+        difficulty,
+        main_story_hours,
+        available_languages,
         game_tags (
           tags (
             id,
@@ -295,7 +382,6 @@ export default async function GamePage({
   }
 
   const game = data as unknown as Game;
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -391,12 +477,7 @@ export default async function GamePage({
         ...release,
         platform: normalizeRelation(release.platforms),
       }))
-      .filter((release) => release.platform)
-      .sort((a, b) => {
-        const dateA = a.release_date ?? "9999-12-31";
-        const dateB = b.release_date ?? "9999-12-31";
-        return dateA.localeCompare(dateB);
-      }) ?? [];
+      .filter((release) => release.platform) ?? [];
 
   const coverOptions: GameCoverOption[] = gamePlatforms
     .filter(
@@ -437,13 +518,151 @@ export default async function GamePage({
 
   const defaultCoverUrl = game.cover_url ?? coverOptions[0]?.coverUrl ?? null;
 
+  const primaryInformation: InformationItem[] = [
+    game.original_title
+      ? { label: "Titre original", value: game.original_title }
+      : null,
+    game.country_of_origin
+      ? { label: "Origine", value: game.country_of_origin }
+      : null,
+    firstReleaseDate
+      ? { label: "Première sortie", value: formatDate(firstReleaseDate) ?? "" }
+      : game.release_year
+        ? { label: "Première sortie", value: String(game.release_year) }
+        : null,
+    game.developer ? { label: "Développeur", value: game.developer } : null,
+    game.publisher ? { label: "Éditeur", value: game.publisher } : null,
+    game.series ? { label: "Série", value: game.series } : null,
+    labelValue(game.game_mode, gameModeLabels)
+      ? {
+          label: "Mode de jeu",
+          value: labelValue(game.game_mode, gameModeLabels) as string,
+        }
+      : null,
+    game.main_story_hours
+      ? {
+          label: "Durée principale",
+          value: `Environ ${game.main_story_hours} h`,
+        }
+      : null,
+    game.available_languages
+      ? { label: "Langues", value: game.available_languages }
+      : null,
+  ].filter((item): item is InformationItem => Boolean(item?.value));
+
+  const jrpgInformation: InformationItem[] = [
+    labelValue(game.battle_system, battleSystemLabels)
+      ? {
+          label: "Système de combat",
+          value: labelValue(game.battle_system, battleSystemLabels) as string,
+        }
+      : null,
+    labelValue(game.party_structure, partyStructureLabels)
+      ? {
+          label: "Structure du groupe",
+          value: labelValue(game.party_structure, partyStructureLabels) as string,
+        }
+      : null,
+    labelValue(game.progression_system, progressionSystemLabels)
+      ? {
+          label: "Progression",
+          value: labelValue(
+            game.progression_system,
+            progressionSystemLabels,
+          ) as string,
+        }
+      : null,
+    labelValue(game.narrative_structure, narrativeStructureLabels)
+      ? {
+          label: "Narration",
+          value: labelValue(
+            game.narrative_structure,
+            narrativeStructureLabels,
+          ) as string,
+        }
+      : null,
+    labelValue(game.exploration_style, explorationStyleLabels)
+      ? {
+          label: "Exploration",
+          value: labelValue(
+            game.exploration_style,
+            explorationStyleLabels,
+          ) as string,
+        }
+      : null,
+    labelValue(game.difficulty, difficultyLabels)
+      ? {
+          label: "Difficulté",
+          value: labelValue(game.difficulty, difficultyLabels) as string,
+        }
+      : null,
+  ].filter((item): item is InformationItem => Boolean(item?.value));
+
+  const availabilityByKey = new Map<string, AvailabilityRow>();
+
+  gamePlatforms.forEach((version) => {
+    const platformName = version.platform?.name;
+
+    if (!platformName) {
+      return;
+    }
+
+    const key = `${platformName}:${version.region ?? ""}:${version.release_date ?? ""}:${version.edition_name ?? ""}`;
+    availabilityByKey.set(key, {
+      key: `platform-${version.id}`,
+      platformName,
+      region: version.region,
+      releaseDate: version.release_date,
+      physical: version.physical,
+      digital: version.digital,
+      editionName: version.edition_name,
+      status: null,
+    });
+  });
+
+  releases.forEach((release) => {
+    const platformName = release.platform?.name;
+
+    if (!platformName) {
+      return;
+    }
+
+    const lookupKey = `${platformName}:${release.region ?? ""}:${release.release_date ?? ""}:${release.edition_name ?? ""}`;
+    const existing = availabilityByKey.get(lookupKey);
+
+    if (existing) {
+      availabilityByKey.set(lookupKey, {
+        ...existing,
+        status: release.status,
+      });
+      return;
+    }
+
+    availabilityByKey.set(lookupKey, {
+      key: `release-${release.id}`,
+      platformName,
+      region: release.region,
+      releaseDate: release.release_date,
+      physical: release.physical,
+      digital: release.digital,
+      editionName: release.edition_name,
+      status: release.status,
+    });
+  });
+
+  const availabilityRows = Array.from(availabilityByKey.values()).sort((a, b) => {
+    const dateA = a.releaseDate ?? "9999-12-31";
+    const dateB = b.releaseDate ?? "9999-12-31";
+    return dateA.localeCompare(dateB) || a.platformName.localeCompare(b.platformName, "fr");
+  });
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <GameHero
         gameId={game.id}
         title={game.title}
         series={game.series}
-        description={game.description}
+        description={getSummary(game.description)}
         developer={game.developer}
         publisher={game.publisher}
         releaseYear={game.release_year}
@@ -457,6 +676,38 @@ export default async function GamePage({
 
       <section className="mx-auto grid w-full max-w-7xl gap-8 px-5 py-10 sm:px-8 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="grid content-start gap-8">
+          {primaryInformation.length > 0 && (
+            <section className="rounded-2xl border border-slate-800 bg-slate-900/65 p-6 sm:p-8">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-400">
+                Fiche technique
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-white">
+                Informations principales
+              </h2>
+              <div className="mt-6">
+                <DetailsGrid items={primaryInformation} />
+              </div>
+            </section>
+          )}
+
+          {jrpgInformation.length > 0 && (
+            <section className="rounded-2xl border border-purple-500/25 bg-gradient-to-br from-slate-900/80 to-purple-950/25 p-6 sm:p-8">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-400">
+                Identité du jeu
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-white">
+                Informations JRPG
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                Les éléments qui définissent sa structure de jeu, sa progression et
+                sa narration.
+              </p>
+              <div className="mt-6">
+                <DetailsGrid items={jrpgInformation} />
+              </div>
+            </section>
+          )}
+
           {game.description && (
             <article className="rounded-2xl border border-slate-800 bg-slate-900/65 p-6 sm:p-8">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-400">
@@ -471,7 +722,7 @@ export default async function GamePage({
             </article>
           )}
 
-          {releases.length > 0 && (
+          {availabilityRows.length > 0 && (
             <section className="rounded-2xl border border-slate-800 bg-slate-900/65 p-6 sm:p-8">
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
                 <div>
@@ -479,51 +730,54 @@ export default async function GamePage({
                     Disponibilité
                   </p>
                   <h2 className="mt-2 text-2xl font-bold text-white">
-                    Sorties référencées
+                    Versions et historique des sorties
                   </h2>
                 </div>
-                <Link href="/releases" className="text-sm text-purple-300 hover:text-purple-200">
+                <Link
+                  href="/releases"
+                  className="text-sm text-purple-300 hover:text-purple-200"
+                >
                   Voir le calendrier →
                 </Link>
               </div>
 
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                {releases.map((release) => (
-                  <div
-                    key={release.id}
-                    className="rounded-xl border border-slate-800 bg-slate-950/75 p-5"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <span
-                        className={`rounded border px-2 py-1 text-xs font-medium ${getPlatformTagClass(
-                          release.platform?.name ?? "",
-                        )}`}
-                      >
-                        {release.platform?.name ?? "Plateforme inconnue"}
-                      </span>
-                      <span
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStatusClass(
-                          release.status,
-                        )}`}
-                      >
-                        {formatStatus(release.status)}
-                      </span>
-                    </div>
-
-                    <p className="mt-4 text-xl font-bold text-white">
-                      {formatDate(release.release_date)}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-400">
-                      {release.region ?? "Région inconnue"} ·{" "}
-                      {formatReleaseFormat(release.physical, release.digital)}
-                    </p>
-                    {release.edition_name && (
-                      <p className="mt-1 text-sm text-slate-500">
-                        Édition {release.edition_name}
-                      </p>
-                    )}
-                  </div>
-                ))}
+              <div className="mt-6 overflow-x-auto rounded-xl border border-slate-800">
+                <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                  <thead className="bg-slate-950 text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Plateforme</th>
+                      <th className="px-4 py-3 font-semibold">Région</th>
+                      <th className="px-4 py-3 font-semibold">Date</th>
+                      <th className="px-4 py-3 font-semibold">Format</th>
+                      <th className="px-4 py-3 font-semibold">Édition</th>
+                      <th className="px-4 py-3 font-semibold">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 bg-slate-950/65">
+                    {availabilityRows.map((row) => (
+                      <tr key={row.key}>
+                        <td className="px-4 py-4 font-semibold text-white">
+                          {row.platformName}
+                        </td>
+                        <td className="px-4 py-4 text-slate-300">
+                          {row.region ?? "—"}
+                        </td>
+                        <td className="px-4 py-4 text-slate-300">
+                          {formatShortDate(row.releaseDate)}
+                        </td>
+                        <td className="px-4 py-4 text-slate-300">
+                          {formatReleaseFormat(row.physical, row.digital)}
+                        </td>
+                        <td className="px-4 py-4 text-slate-300">
+                          {row.editionName || "Standard"}
+                        </td>
+                        <td className="px-4 py-4 text-slate-300">
+                          {formatStatus(row.status) ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </section>
           )}
@@ -539,7 +793,10 @@ export default async function GamePage({
                     News liées au jeu
                   </h2>
                 </div>
-                <Link href="/news" className="text-sm text-purple-300 hover:text-purple-200">
+                <Link
+                  href="/news"
+                  className="text-sm text-purple-300 hover:text-purple-200"
+                >
                   Toutes les news →
                 </Link>
               </div>
@@ -566,14 +823,19 @@ export default async function GamePage({
                     </div>
                     <div className="p-4">
                       <p className="text-xs text-purple-300">
-                        {news.category ?? "Actualité"} · {formatDate(news.published_at)}
+                        {news.category ?? "Actualité"}
+                        {news.published_at
+                          ? ` · ${formatDate(news.published_at)}`
+                          : ""}
                       </p>
                       <h3 className="mt-2 line-clamp-2 font-bold text-white">
                         {news.title}
                       </h3>
-                      <p className="mt-2 line-clamp-2 text-sm text-slate-400">
-                        {getNewsText(news)}
-                      </p>
+                      {getNewsText(news) && (
+                        <p className="mt-2 line-clamp-2 text-sm text-slate-400">
+                          {getNewsText(news)}
+                        </p>
+                      )}
                     </div>
                   </Link>
                 ))}
@@ -593,29 +855,32 @@ export default async function GamePage({
               </h2>
 
               <div className="mt-5 grid gap-3">
-                {collectionEntries.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="rounded-xl border border-slate-800 bg-slate-950/75 p-4"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span
-                        className={`rounded border px-2 py-1 text-xs font-medium ${getPlatformTagClass(
-                          entry.platform?.name ?? "",
-                        )}`}
-                      >
-                        {entry.platform?.name ?? "Plateforme inconnue"}
-                      </span>
-                      <span className="text-sm font-bold text-white">
-                        {formatCollectionStatus(entry.status)}
-                      </span>
+                {collectionEntries.map((entry) => {
+                  const collectionFormat = formatCollectionFormat(entry.format);
+
+                  return (
+                    <div
+                      key={entry.id}
+                      className="rounded-xl border border-slate-800 bg-slate-950/75 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-semibold text-white">
+                          {entry.platform?.name ?? "Plateforme"}
+                        </span>
+                        <span className="text-sm font-bold text-purple-200">
+                          {formatCollectionStatus(entry.status)}
+                        </span>
+                      </div>
+                      {(collectionFormat || entry.region) && (
+                        <p className="mt-3 text-sm text-slate-400">
+                          {[collectionFormat, entry.region]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      )}
                     </div>
-                    <p className="mt-3 text-sm text-slate-400">
-                      {formatCollectionFormat(entry.format)}
-                      {entry.region ? ` · ${entry.region}` : ""}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           )}
