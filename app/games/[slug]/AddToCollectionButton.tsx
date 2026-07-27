@@ -98,7 +98,10 @@ export default function AddToCollectionButton({
 
     if (coverContainer instanceof HTMLElement) {
       coverContainerRef.current = coverContainer;
-      originalCoverMarkupRef.current = coverContainer.innerHTML;
+
+      if (originalCoverMarkupRef.current === null) {
+        originalCoverMarkupRef.current = coverContainer.innerHTML;
+      }
     }
 
     return () => {
@@ -106,7 +109,7 @@ export default function AddToCollectionButton({
         coverContainerRef.current.innerHTML = originalCoverMarkupRef.current;
       }
     };
-  }, []);
+  }, [isLoadingPlatforms]);
 
   useEffect(() => {
     async function loadPlatforms() {
