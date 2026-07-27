@@ -12,15 +12,17 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
+    files: ["**/*.{js,jsx,ts,tsx}"],
+    ignores: ["lib/supabase/**"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
-          patterns: [
+          paths: [
             {
-              group: ["@/utils/supabase/*"],
+              name: "@supabase/ssr",
               message:
-                "Utilise les clients Supabase centralisés depuis @/lib/supabase/.",
+                "Utilise les clients centralisés depuis @/lib/supabase/client, @/lib/supabase/server ou @/lib/supabase/proxy.",
             },
           ],
         },
