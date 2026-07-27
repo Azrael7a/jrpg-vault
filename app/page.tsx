@@ -37,6 +37,8 @@ type PlatformRelation = {
   id: number;
   name: string;
   manufacturer: string | null;
+  slug: string | null;
+  is_legacy: boolean | null;
 };
 
 type RawRelease = {
@@ -48,6 +50,7 @@ type RawRelease = {
   digital: boolean | null;
   status: string | null;
   edition_name: string | null;
+  card_image_url: string | null;
   games: GameRelation | GameRelation[] | null;
   platforms: PlatformRelation | PlatformRelation[] | null;
 };
@@ -134,6 +137,7 @@ export default async function HomePage() {
       digital,
       status,
       edition_name,
+      card_image_url,
       games (
         id,
         title,
@@ -143,7 +147,9 @@ export default async function HomePage() {
       platforms (
         id,
         name,
-        manufacturer
+        manufacturer,
+        slug,
+        is_legacy
       )
     `,
     )
@@ -169,6 +175,7 @@ export default async function HomePage() {
       digital: release.digital,
       status: release.status,
       edition_name: release.edition_name,
+      card_image_url: release.card_image_url,
       game: normalizeRelation(release.games),
       platform: normalizeRelation(release.platforms),
     }))
@@ -220,7 +227,9 @@ export default async function HomePage() {
           platforms (
             id,
             name,
-            manufacturer
+            manufacturer,
+            slug,
+            is_legacy
           )
         `,
         )

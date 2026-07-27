@@ -27,6 +27,8 @@ type AvailableVersion = {
   digital: boolean;
 };
 
+type MessageType = "success" | "error" | "info";
+
 const statuses = [
   { value: "owned", label: "Possédé" },
   { value: "backlog", label: "Backlog" },
@@ -50,17 +52,51 @@ function comparePlatforms(a: PlatformRelation, b: PlatformRelation) {
     return Number(a.is_legacy) - Number(b.is_legacy);
   }
 
+  return a.display_order - b.display_order || a.name.localeCompare(b.name, "fr");
+}
+
+function getFormatLabel(value: string) {
+  switch (value) {
+    case "physical":
+      return "Physique";
+    case "digital":
+      return "Numérique";
+    case "both":
+      return "Les deux";
+    default:
+      return value;
+  }
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+}) {
   return (
-    a.display_order - b.display_order ||
-    a.name.localeCompare(b.name, "fr")
+    <label className="grid gap-1.5">
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        {label}
+      </span>
+
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full min-w-0 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-purple-500"
+      >
+        {children}
+      </select>
+    </label>
   );
 }
 
-export default function AddToCollectionButton({
-  gameId,
-}: {
-  gameId: number;
-}) {
+export default function AddToCollectionButton({ gameId }: { gameId: number }) {
   const supabase = useMemo(() => createClient(), []);
 
   const [availableVersions, setAvailableVersions] = useState<
@@ -71,6 +107,7 @@ export default function AddToCollectionButton({
   const [region, setRegion] = useState<Region | "">("");
   const [status, setStatus] = useState("owned");
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<MessageType>("info");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingPlatforms, setIsLoadingPlatforms] = useState(true);
 
@@ -98,6 +135,7 @@ export default function AddToCollectionButton({
 
       if (error) {
         setMessage(`Erreur plateformes : ${error.message}`);
+        setMessageType("error");
         setIsLoadingPlatforms(false);
         return;
       }
@@ -117,19 +155,14 @@ export default function AddToCollectionButton({
             digital: Boolean(gamePlatform.digital),
           };
         })
-        .filter(
-          (version): version is AvailableVersion => version !== null,
-        );
+        .filter((version): version is AvailableVersion => version !== null);
 
       setAvailableVersions(versions);
 
       if (versions.length > 0) {
         const sortedPlatforms = Array.from(
           new Map(
-            versions.map((version) => [
-              version.platform.id,
-              version.platform,
-            ]),
+            versions.map((version) => [version.platform.id, version.platform]),
           ).values(),
         ).sort(comparePlatforms);
 
@@ -172,10 +205,7 @@ export default function AddToCollectionButton({
       Array.from(
         new Set(
           availableVersions
-            .filter(
-              (version) =>
-                version.platform.id === Number(platformId),
-            )
+            .filter((version) => version.platform.id === Number(platformId))
             .map((version) => version.region),
         ),
       ),
@@ -184,8 +214,11 @@ export default function AddToCollectionButton({
 
   const selectedVersion = availableVersions.find(
     (version) =>
-      version.platform.id === Number(platformId) &&
-      version.region === region,
+      version.platform.id === Number(platformId) && version.region === region,
+  );
+
+  const selectedPlatform = platforms.find(
+    (platform) => platform.id === Number(platformId),
   );
 
   const formats = useMemo(() => {
@@ -247,23 +280,24 @@ export default function AddToCollectionButton({
     }
   }
 
-  async function addToCollection(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
+  async function addToCollection(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
+    setMessageType("info");
     setIsLoading(true);
 
     const { data: userData } = await supabase.auth.getUser();
 
     if (!userData.user) {
       setMessage("Connecte-toi pour ajouter ce jeu.");
+      setMessageType("error");
       setIsLoading(false);
       return;
     }
 
     if (!platformId || !region) {
       setMessage("Aucun support n’est disponible pour ce jeu.");
+      setMessageType("error");
       setIsLoading(false);
       return;
     }
@@ -286,110 +320,152 @@ export default function AddToCollectionButton({
         setMessage(`Erreur : ${error.message}`);
       }
 
+      setMessageType("error");
       setIsLoading(false);
       return;
     }
 
     setMessage("Jeu ajouté à ta collection.");
+    setMessageType("success");
     setIsLoading(false);
   }
 
   if (isLoadingPlatforms) {
     return (
-      <div className="jrpg-card p-4 text-sm text-slate-400">
-        Chargement des supports…
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
+        <div className="h-5 w-32 animate-pulse rounded bg-slate-800" />
+        <div className="mt-4 grid gap-3">
+          <div className="h-10 animate-pulse rounded-xl bg-slate-800" />
+          <div className="h-10 animate-pulse rounded-xl bg-slate-800" />
+        </div>
       </div>
     );
   }
 
   if (platforms.length === 0) {
     return (
-      <div className="jrpg-card p-4">
-        <h2 className="text-xl font-semibold">Ajouter à ma collection</h2>
-        <p className="mt-3 text-sm text-amber-300">
-          Aucun support n’est encore associé à ce jeu.
+      <div className="rounded-2xl border border-amber-900/70 bg-amber-950/20 p-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">
+          Mon Vault
+        </p>
+
+        <h2 className="mt-1 text-xl font-bold text-white">
+          Ajout indisponible
+        </h2>
+
+        <p className="mt-3 text-sm leading-6 text-amber-200">
+          Aucun support n’est encore associé à ce jeu. Ajoute d’abord une
+          plateforme depuis l’admin.
         </p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={addToCollection} className="jrpg-card p-4">
-      <h2 className="text-xl font-semibold">Ajouter à ma collection</h2>
+    <form
+      onSubmit={addToCollection}
+      className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-purple-950/25 p-5 shadow-xl"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-300">
+            Mon Vault
+          </p>
 
-      <div className="mt-4 grid gap-4">
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-200">
-            Plateforme
+          <h2 className="mt-1 text-xl font-bold text-white">
+            Ajouter à ma collection
+          </h2>
+
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            Choisis la version que tu possèdes ou que tu veux suivre dans ton
+            backlog.
+          </p>
+        </div>
+
+        <span className="shrink-0 rounded-full border border-purple-500/40 bg-purple-950/70 px-3 py-1 text-xs font-semibold text-purple-200">
+          Collection
+        </span>
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        {selectedPlatform && (
+          <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs font-medium text-slate-200">
+            {selectedPlatform.name}
           </span>
-          <select
-            value={platformId}
-            onChange={(event) => handlePlatformChange(event.target.value)}
-            className="rounded border px-3 py-2"
-          >
-            {platforms.map((platform) => (
-              <option key={platform.id} value={platform.id}>
-                {platform.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        )}
 
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-200">Format</span>
-          <select
-            value={format}
-            onChange={(event) => setFormat(event.target.value)}
-            className="rounded border px-3 py-2"
-          >
-            {formats.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {region && (
+          <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs font-medium text-slate-200">
+            Région {region}
+          </span>
+        )}
 
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-200">Région</span>
-          <select
-            value={region}
-            onChange={(event) => setRegion(event.target.value as Region)}
-            className="rounded border px-3 py-2"
-          >
-            {regions.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </label>
+        {format && (
+          <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs font-medium text-slate-200">
+            {getFormatLabel(format)}
+          </span>
+        )}
+      </div>
 
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-200">Statut</span>
-          <select
-            value={status}
-            onChange={(event) => setStatus(event.target.value)}
-            className="rounded border px-3 py-2"
-          >
-            {statuses.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <SelectField label="Plateforme" value={platformId} onChange={handlePlatformChange}>
+          {platforms.map((platform) => (
+            <option key={platform.id} value={platform.id}>
+              {platform.name}
+            </option>
+          ))}
+        </SelectField>
+
+        <SelectField label="Format" value={format} onChange={setFormat}>
+          {formats.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </SelectField>
+
+        <SelectField
+          label="Région"
+          value={region}
+          onChange={(value) => setRegion(value as Region)}
+        >
+          {regions.map((item) => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </SelectField>
+
+        <SelectField label="Statut" value={status} onChange={setStatus}>
+          {statuses.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </SelectField>
       </div>
 
       <button
         type="submit"
         disabled={isLoading}
-        className="jrpg-button-primary mt-4 px-4 py-2 disabled:opacity-50"
+        className="mt-5 w-full rounded-xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-950/40 transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isLoading ? "Ajout..." : "Ajouter à ma collection"}
+        {isLoading ? "Ajout en cours..." : "+ Ajouter au Vault"}
       </button>
 
-      {message && <p className="mt-3 text-sm text-slate-300">{message}</p>}
+      {message && (
+        <p
+          className={
+            messageType === "success"
+              ? "mt-3 rounded-xl border border-green-500/40 bg-green-950/40 px-3 py-2 text-sm text-green-200"
+              : messageType === "error"
+                ? "mt-3 rounded-xl border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200"
+                : "mt-3 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300"
+          }
+        >
+          {message}
+        </p>
+      )}
     </form>
   );
 }
