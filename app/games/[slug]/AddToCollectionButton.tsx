@@ -1,10 +1,9 @@
 "use client";
 
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 import { useEffect, useMemo, useState } from "react";
 
 type Region = "PAL" | "US" | "JAP" | "ASIA" | "WORLD";
-type CollectionFormat = "physical" | "digital" | "both";
 
 type PlatformRelation = {
   id: number;
@@ -57,18 +56,6 @@ function comparePlatforms(a: PlatformRelation, b: PlatformRelation) {
   );
 }
 
-function getInitialFormat(version: AvailableVersion): CollectionFormat {
-  if (version.physical) {
-    return "physical";
-  }
-
-  if (version.digital) {
-    return "digital";
-  }
-
-  return "physical";
-}
-
 export default function AddToCollectionButton({
   gameId,
 }: {
@@ -80,7 +67,7 @@ export default function AddToCollectionButton({
     AvailableVersion[]
   >([]);
   const [platformId, setPlatformId] = useState("");
-  const [format, setFormat] = useState<CollectionFormat>("physical");
+  const [format, setFormat] = useState("physical");
   const [region, setRegion] = useState<Region | "">("");
   const [status, setStatus] = useState("owned");
   const [message, setMessage] = useState("");
@@ -145,6 +132,7 @@ export default function AddToCollectionButton({
             ]),
           ).values(),
         ).sort(comparePlatforms);
+
         const firstPlatform = sortedPlatforms[0];
         const firstVersion = versions.find(
           (version) => version.platform.id === firstPlatform.id,
@@ -153,8 +141,10 @@ export default function AddToCollectionButton({
         setPlatformId(String(firstPlatform.id));
         setRegion(firstVersion?.region ?? "WORLD");
 
-        if (firstVersion) {
-          setFormat(getInitialFormat(firstVersion));
+        if (firstVersion?.physical) {
+          setFormat("physical");
+        } else if (firstVersion?.digital) {
+          setFormat("digital");
         }
       }
 
@@ -192,13 +182,10 @@ export default function AddToCollectionButton({
     [availableVersions, platformId],
   );
 
-  const selectedRegion: Region | "" =
-    region && regions.includes(region) ? region : (regions[0] ?? "");
-
   const selectedVersion = availableVersions.find(
     (version) =>
       version.platform.id === Number(platformId) &&
-      version.region === selectedRegion,
+      version.region === region,
   );
 
   const formats = useMemo(() => {
@@ -206,7 +193,7 @@ export default function AddToCollectionButton({
       return [];
     }
 
-    const result: { value: CollectionFormat; label: string }[] = [];
+    const result: { value: string; label: string }[] = [];
 
     if (selectedVersion.physical) {
       result.push({ value: "physical", label: "Physique" });
@@ -230,9 +217,17 @@ export default function AddToCollectionButton({
     return result;
   }, [selectedVersion]);
 
-  const selectedFormat = formats.some((item) => item.value === format)
-    ? format
-    : (formats[0]?.value ?? "physical");
+  useEffect(() => {
+    if (regions.length > 0 && !regions.includes(region as Region)) {
+      setRegion(regions[0]);
+    }
+  }, [region, regions]);
+
+  useEffect(() => {
+    if (formats.length > 0 && !formats.some((item) => item.value === format)) {
+      setFormat(formats[0].value);
+    }
+  }, [format, formats]);
 
   function handlePlatformChange(value: string) {
     setPlatformId(value);
@@ -243,20 +238,12 @@ export default function AddToCollectionButton({
 
     if (firstVersion) {
       setRegion(firstVersion.region);
-      setFormat(getInitialFormat(firstVersion));
-    }
-  }
 
-  function handleRegionChange(value: Region) {
-    setRegion(value);
-
-    const version = availableVersions.find(
-      (item) =>
-        item.platform.id === Number(platformId) && item.region === value,
-    );
-
-    if (version) {
-      setFormat(getInitialFormat(version));
+      if (firstVersion.physical) {
+        setFormat("physical");
+      } else if (firstVersion.digital) {
+        setFormat("digital");
+      }
     }
   }
 
@@ -275,7 +262,7 @@ export default function AddToCollectionButton({
       return;
     }
 
-    if (!platformId || !selectedRegion) {
+    if (!platformId || !region) {
       setMessage("Aucun support n’est disponible pour ce jeu.");
       setIsLoading(false);
       return;
@@ -286,8 +273,8 @@ export default function AddToCollectionButton({
       game_id: gameId,
       platform_id: Number(platformId),
       status,
-      format: selectedFormat,
-      region: selectedRegion,
+      format,
+      region,
     });
 
     if (error) {
@@ -351,10 +338,8 @@ export default function AddToCollectionButton({
         <label className="grid gap-1">
           <span className="text-sm font-medium text-slate-200">Format</span>
           <select
-            value={selectedFormat}
-            onChange={(event) =>
-              setFormat(event.target.value as CollectionFormat)
-            }
+            value={format}
+            onChange={(event) => setFormat(event.target.value)}
             className="rounded border px-3 py-2"
           >
             {formats.map((item) => (
@@ -368,10 +353,8 @@ export default function AddToCollectionButton({
         <label className="grid gap-1">
           <span className="text-sm font-medium text-slate-200">Région</span>
           <select
-            value={selectedRegion}
-            onChange={(event) =>
-              handleRegionChange(event.target.value as Region)
-            }
+            value={region}
+            onChange={(event) => setRegion(event.target.value as Region)}
             className="rounded border px-3 py-2"
           >
             {regions.map((item) => (
