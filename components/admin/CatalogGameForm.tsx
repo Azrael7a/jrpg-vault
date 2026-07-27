@@ -16,6 +16,7 @@ export type CatalogPlatformValue = {
   release_date: string;
   release_format: "physical" | "digital" | "both";
   edition_name: string;
+  cover_url: string;
 };
 
 export type CatalogGameValue = {
@@ -52,6 +53,7 @@ function createEmptyPlatform(platformId: number): CatalogPlatformValue {
     release_date: "",
     release_format: "physical",
     edition_name: "",
+    cover_url: "",
   };
 }
 
@@ -141,9 +143,7 @@ export default function CatalogGameForm({
 
         <div className="grid gap-5 md:grid-cols-2">
           <label className="grid gap-2 md:col-span-2">
-            <span className="text-sm font-medium text-slate-200">
-              Titre *
-            </span>
+            <span className="text-sm font-medium text-slate-200">Titre *</span>
             <input
               name="title"
               required
@@ -212,7 +212,7 @@ export default function CatalogGameForm({
 
           <label className="grid gap-2">
             <span className="text-sm font-medium text-slate-200">
-              URL de la jaquette
+              Jaquette principale
             </span>
             <input
               name="cover_url"
@@ -221,6 +221,10 @@ export default function CatalogGameForm({
               className="rounded-xl border px-4 py-3"
               placeholder="https://..."
             />
+            <span className="text-xs text-slate-500">
+              Utilisée par défaut dans le catalogue et lorsqu’une version ne possède
+              pas sa propre jaquette.
+            </span>
           </label>
 
           <label className="grid gap-2 md:col-span-2">
@@ -243,8 +247,8 @@ export default function CatalogGameForm({
           <div>
             <h2 className="text-2xl font-bold">Versions disponibles</h2>
             <p className="mt-1 text-sm text-slate-400">
-              Ces versions servent aux filtres et à la collection. Elles ne
-              sont pas ajoutées au calendrier des sorties.
+              Chaque combinaison support + région peut posséder sa propre
+              jaquette. Ces versions servent aussi aux filtres et à la collection.
             </p>
           </div>
 
@@ -267,7 +271,7 @@ export default function CatalogGameForm({
             {catalogPlatforms.map((catalogPlatform, index) => (
               <div
                 key={catalogPlatform.key}
-                className="grid gap-4 rounded-xl border border-slate-700 p-4 lg:grid-cols-[1.3fr_0.7fr_0.9fr_0.8fr_1fr_auto]"
+                className="grid gap-4 rounded-xl border border-slate-700 bg-slate-950/40 p-4 md:grid-cols-2 xl:grid-cols-4"
               >
                 <label className="grid gap-2">
                   <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -391,7 +395,40 @@ export default function CatalogGameForm({
                   />
                 </label>
 
-                <div className="flex items-end">
+                <label className="grid gap-2 md:col-span-2 xl:col-span-3">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    URL de la jaquette de cette version
+                  </span>
+                  <input
+                    name="version_cover_url"
+                    type="url"
+                    value={catalogPlatform.cover_url}
+                    onChange={(event) =>
+                      updatePlatform(
+                        catalogPlatform.key,
+                        "cover_url",
+                        event.target.value,
+                      )
+                    }
+                    className="rounded-xl border px-3 py-2"
+                    placeholder="https://..."
+                  />
+                  {catalogPlatform.cover_url && (
+                    <div className="mt-2 flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-950 p-3">
+                      <img
+                        src={catalogPlatform.cover_url}
+                        alt={`Aperçu de la jaquette ${catalogPlatform.region}`}
+                        className="h-28 w-20 rounded-lg object-cover"
+                      />
+                      <p className="text-sm text-slate-400">
+                        Aperçu pour la version sélectionnée. L’image principale sera
+                        utilisée si cette URL est vide.
+                      </p>
+                    </div>
+                  )}
+                </label>
+
+                <div className="flex items-end justify-end">
                   <button
                     type="button"
                     onClick={() => removePlatform(catalogPlatform.key)}
