@@ -74,6 +74,29 @@ function getVersionKey(version: AvailableVersion) {
   return `${version.platform.id}:${version.region}`;
 }
 
+function adaptCoverToImage(
+  container: HTMLElement,
+  image: HTMLImageElement,
+) {
+  const updateSize = () => {
+    if (!image.naturalWidth || !image.naturalHeight) {
+      return;
+    }
+
+    const naturalRatio = image.naturalWidth / image.naturalHeight;
+    const displayRatio = Math.min(1.1, Math.max(0.62, naturalRatio));
+
+    container.style.aspectRatio = String(displayRatio);
+    image.className = "h-full w-full object-contain";
+  };
+
+  if (image.complete && image.naturalWidth > 0) {
+    updateSize();
+  } else {
+    image.addEventListener("load", updateSize, { once: true });
+  }
+}
+
 export default function AddToCollectionButton({
   gameId,
 }: {
@@ -81,8 +104,8 @@ export default function AddToCollectionButton({
 }) {
   const supabase = useMemo(() => createClient(), []);
   const formRef = useRef<HTMLFormElement>(null);
-  const originalCoverMarkupRef = useRef<string | null>(null);
   const coverContainerRef = useRef<HTMLElement | null>(null);
+  const defaultCoverMarkupRef = useRef<string | null>(null);
 
   const [availableVersions, setAvailableVersions] = useState<
     AvailableVersion[]
@@ -95,23 +118,6 @@ export default function AddToCollectionButton({
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingPlatforms, setIsLoadingPlatforms] = useState(true);
   const [activeCoverKey, setActiveCoverKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    const form = formRef.current;
-    const actionPanel = form?.parentElement;
-    const coverContainer = actionPanel?.previousElementSibling;
-
-    if (coverContainer instanceof HTMLElement) {
-      coverContainerRef.current = coverContainer;
-      originalCoverMarkupRef.current = coverContainer.innerHTML;
-    }
-
-    return () => {
-      if (coverContainerRef.current && originalCoverMarkupRef.current !== null) {
-        coverContainerRef.current.innerHTML = originalCoverMarkupRef.current;
-      }
-    };
-  }, []);
 
   useEffect(() => {
     async function loadPlatforms() {
@@ -192,6 +198,34 @@ export default function AddToCollectionButton({
 
     void loadPlatforms();
   }, [gameId, supabase]);
+
+  useEffect(() => {
+    if (isLoadingPlatforms) {
+      return;
+    }
+
+    const form = formRef.current;
+    const actionPanel = form?.parentElement;
+    const coverContainer = actionPanel?.previousElementSibling;
+
+    if (!(coverContainer instanceof HTMLElement)) {
+      return;
+    }
+
+    coverContainerRef.current = coverContainer;
+
+    if (defaultCoverMarkupRef.current === null) {
+      defaultCoverMarkupRef.current = coverContainer.innerHTML;
+    }
+
+    const currentImage = coverContainer.querySelector("img");
+
+    if (currentImage instanceof HTMLImageElement) {
+      adaptCoverToImage(coverContainer, currentImage);
+    } else {
+      coverContainer.style.aspectRatio = "3 / 4";
+    }
+  }, [isLoadingPlatforms]);
 
   const platforms = useMemo(
     () =>
@@ -284,40 +318,62 @@ export default function AddToCollectionButton({
     }
   }, [format, formats]);
 
-  useEffect(() => {
+  function restoreDefaultCover() {
+    const coverContainer = coverContainerRef.current;
+    const defaultMarkup = defaultCoverMarkupRef.current;
+
+    if (!coverContainer || defaultMarkup === null) {
+      return;
+    }
+
+    coverContainer.innerHTML = defaultMarkup;
+    const image = coverContainer.querySelector("img");
+
+    if (image instanceof HTMLImageElement) {
+      adaptCoverToImage(coverContainer, image);
+    } else {
+      coverContainer.style.aspectRatio = "3 / 4";
+    }
+  }
+
+  function showVersionCover(version: AvailableVersion) {
     const coverContainer = coverContainerRef.current;
 
-    if (!coverContainer || originalCoverMarkupRef.current === null) {
-      return;
-    }
-
-    if (!activeCoverKey) {
-      coverContainer.innerHTML = originalCoverMarkupRef.current;
-      return;
-    }
-
-    const activeVersion = coverVersions.find(
-      (version) => getVersionKey(version) === activeCoverKey,
-    );
-
-    if (!activeVersion?.coverUrl) {
-      coverContainer.innerHTML = originalCoverMarkupRef.current;
+    if (!coverContainer || !version.coverUrl) {
+      restoreDefaultCover();
       return;
     }
 
     const image = document.createElement("img");
-    image.src = activeVersion.coverUrl;
-    image.alt = `Jaquette ${activeVersion.platform.name} ${activeVersion.region}`;
-    image.className = "aspect-[3/4] w-full object-cover";
+    image.src = version.coverUrl;
+    image.alt = `Jaquette ${version.platform.name} ${version.region}`;
+    image.className = "h-full w-full object-contain";
 
+    image.addEventListener(
+      "error",
+      () => {
+        restoreDefaultCover();
+        setActiveCoverKey(null);
+      },
+      { once: true },
+    );
+
+    coverContainer.style.aspectRatio = "3 / 4";
     coverContainer.replaceChildren(image);
-  }, [activeCoverKey, coverVersions]);
+    adaptCoverToImage(coverContainer, image);
+  }
+
+  function selectDefaultCover() {
+    setActiveCoverKey(null);
+    restoreDefaultCover();
+  }
 
   function selectCoverVersion(version: AvailableVersion) {
     setActiveCoverKey(getVersionKey(version));
     setPlatformId(String(version.platform.id));
     setRegion(version.region);
     setFormat(getInitialFormat(version));
+    showVersionCover(version);
   }
 
   function handlePlatformChange(value: string) {
@@ -423,12 +479,12 @@ export default function AddToCollectionButton({
             La fiche s’ouvre sur la jaquette par défaut du catalogue.
           </p>
 
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-nowrap gap-2 overflow-x-auto pb-2">
             <button
               type="button"
-              onClick={() => setActiveCoverKey(null)}
+              onClick={selectDefaultCover}
               aria-pressed={activeCoverKey === null}
-              className={`rounded-full border px-3 py-2 text-sm font-medium transition ${
+              className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1.5 text-xs font-medium transition ${
                 activeCoverKey === null
                   ? "border-purple-400 bg-purple-500/15 text-purple-100"
                   : "border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-500"
@@ -447,7 +503,7 @@ export default function AddToCollectionButton({
                   type="button"
                   onClick={() => selectCoverVersion(version)}
                   aria-pressed={isSelected}
-                  className={`rounded-full border px-3 py-2 text-sm font-medium transition ${
+                  className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1.5 text-xs font-medium transition ${
                     isSelected
                       ? "border-purple-400 bg-purple-500/15 text-purple-100"
                       : "border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-500"
@@ -465,9 +521,7 @@ export default function AddToCollectionButton({
 
       <div className="mt-4 grid gap-4">
         <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-200">
-            Plateforme
-          </span>
+          <span className="text-sm font-medium text-slate-200">Plateforme</span>
           <select
             value={platformId}
             onChange={(event) => handlePlatformChange(event.target.value)}
@@ -500,9 +554,7 @@ export default function AddToCollectionButton({
           <span className="text-sm font-medium text-slate-200">Région</span>
           <select
             value={region}
-            onChange={(event) =>
-              handleRegionChange(event.target.value as Region)
-            }
+            onChange={(event) => handleRegionChange(event.target.value as Region)}
             className="rounded border px-3 py-2"
           >
             {regions.map((item) => (
