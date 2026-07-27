@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Region = "PAL" | "US" | "JAP" | "ASIA" | "WORLD";
 
@@ -17,6 +17,7 @@ type RawGamePlatform = {
   region: Region;
   physical: boolean | null;
   digital: boolean | null;
+  cover_url: string | null;
   platforms: PlatformRelation | PlatformRelation[] | null;
 };
 
@@ -25,6 +26,7 @@ type AvailableVersion = {
   region: Region;
   physical: boolean;
   digital: boolean;
+  coverUrl: string | null;
 };
 
 const statuses = [
@@ -56,12 +58,27 @@ function comparePlatforms(a: PlatformRelation, b: PlatformRelation) {
   );
 }
 
+function getInitialFormat(version: AvailableVersion) {
+  if (version.physical) {
+    return "physical";
+  }
+
+  if (version.digital) {
+    return "digital";
+  }
+
+  return "physical";
+}
+
 export default function AddToCollectionButton({
   gameId,
 }: {
   gameId: number;
 }) {
   const supabase = useMemo(() => createClient(), []);
+  const formRef = useRef<HTMLFormElement>(null);
+  const originalCoverMarkupRef = useRef<string | null>(null);
+  const coverContainerRef = useRef<HTMLElement | null>(null);
 
   const [availableVersions, setAvailableVersions] = useState<
     AvailableVersion[]
@@ -75,6 +92,23 @@ export default function AddToCollectionButton({
   const [isLoadingPlatforms, setIsLoadingPlatforms] = useState(true);
 
   useEffect(() => {
+    const form = formRef.current;
+    const actionPanel = form?.parentElement;
+    const coverContainer = actionPanel?.previousElementSibling;
+
+    if (coverContainer instanceof HTMLElement) {
+      coverContainerRef.current = coverContainer;
+      originalCoverMarkupRef.current = coverContainer.innerHTML;
+    }
+
+    return () => {
+      if (coverContainerRef.current && originalCoverMarkupRef.current !== null) {
+        coverContainerRef.current.innerHTML = originalCoverMarkupRef.current;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     async function loadPlatforms() {
       setIsLoadingPlatforms(true);
 
@@ -86,6 +120,7 @@ export default function AddToCollectionButton({
             region,
             physical,
             digital,
+            cover_url,
             platforms (
               id,
               name,
@@ -115,6 +150,7 @@ export default function AddToCollectionButton({
             region: gamePlatform.region,
             physical: Boolean(gamePlatform.physical),
             digital: Boolean(gamePlatform.digital),
+            coverUrl: gamePlatform.cover_url,
           };
         })
         .filter(
@@ -141,10 +177,8 @@ export default function AddToCollectionButton({
         setPlatformId(String(firstPlatform.id));
         setRegion(firstVersion?.region ?? "WORLD");
 
-        if (firstVersion?.physical) {
-          setFormat("physical");
-        } else if (firstVersion?.digital) {
-          setFormat("digital");
+        if (firstVersion) {
+          setFormat(getInitialFormat(firstVersion));
         }
       }
 
@@ -188,6 +222,11 @@ export default function AddToCollectionButton({
       version.region === region,
   );
 
+  const coverVersions = useMemo(
+    () => availableVersions.filter((version) => Boolean(version.coverUrl)),
+    [availableVersions],
+  );
+
   const formats = useMemo(() => {
     if (!selectedVersion) {
       return [];
@@ -229,6 +268,32 @@ export default function AddToCollectionButton({
     }
   }, [format, formats]);
 
+  useEffect(() => {
+    const coverContainer = coverContainerRef.current;
+
+    if (!coverContainer || originalCoverMarkupRef.current === null) {
+      return;
+    }
+
+    if (!selectedVersion?.coverUrl) {
+      coverContainer.innerHTML = originalCoverMarkupRef.current;
+      return;
+    }
+
+    const image = document.createElement("img");
+    image.src = selectedVersion.coverUrl;
+    image.alt = `Jaquette ${selectedVersion.platform.name} ${selectedVersion.region}`;
+    image.className = "aspect-[3/4] w-full object-cover";
+
+    coverContainer.replaceChildren(image);
+  }, [selectedVersion]);
+
+  function selectVersion(version: AvailableVersion) {
+    setPlatformId(String(version.platform.id));
+    setRegion(version.region);
+    setFormat(getInitialFormat(version));
+  }
+
   function handlePlatformChange(value: string) {
     setPlatformId(value);
 
@@ -238,12 +303,20 @@ export default function AddToCollectionButton({
 
     if (firstVersion) {
       setRegion(firstVersion.region);
+      setFormat(getInitialFormat(firstVersion));
+    }
+  }
 
-      if (firstVersion.physical) {
-        setFormat("physical");
-      } else if (firstVersion.digital) {
-        setFormat("digital");
-      }
+  function handleRegionChange(value: Region) {
+    setRegion(value);
+
+    const version = availableVersions.find(
+      (item) =>
+        item.platform.id === Number(platformId) && item.region === value,
+    );
+
+    if (version) {
+      setFormat(getInitialFormat(version));
     }
   }
 
@@ -314,7 +387,49 @@ export default function AddToCollectionButton({
   }
 
   return (
-    <form onSubmit={addToCollection} className="jrpg-card p-4">
+    <form ref={formRef} onSubmit={addToCollection} className="jrpg-card p-4">
+      {coverVersions.length > 0 && (
+        <div className="mb-5 border-b border-slate-800 pb-5">
+          <p className="text-sm font-semibold text-slate-200">
+            Jaquettes disponibles
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Choisis une console et une région pour afficher sa jaquette.
+          </p>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {coverVersions.map((version) => {
+              const isSelected =
+                version.platform.id === Number(platformId) &&
+                version.region === region;
+
+              return (
+                <button
+                  key={`${version.platform.id}-${version.region}`}
+                  type="button"
+                  onClick={() => selectVersion(version)}
+                  aria-pressed={isSelected}
+                  className={`overflow-hidden rounded-xl border text-left transition ${
+                    isSelected
+                      ? "border-purple-400 bg-purple-500/10"
+                      : "border-slate-700 bg-slate-950 hover:border-slate-500"
+                  }`}
+                >
+                  <img
+                    src={version.coverUrl ?? ""}
+                    alt={`Jaquette ${version.platform.name} ${version.region}`}
+                    className="aspect-[3/4] w-full object-cover"
+                  />
+                  <span className="block px-2 py-2 text-xs font-medium text-slate-200">
+                    {version.platform.name} · {version.region}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <h2 className="text-xl font-semibold">Ajouter à ma collection</h2>
 
       <div className="mt-4 grid gap-4">
@@ -354,7 +469,9 @@ export default function AddToCollectionButton({
           <span className="text-sm font-medium text-slate-200">Région</span>
           <select
             value={region}
-            onChange={(event) => setRegion(event.target.value as Region)}
+            onChange={(event) =>
+              handleRegionChange(event.target.value as Region)
+            }
             className="rounded border px-3 py-2"
           >
             {regions.map((item) => (
