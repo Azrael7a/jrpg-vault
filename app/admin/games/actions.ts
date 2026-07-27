@@ -14,6 +14,7 @@ type CatalogPlatformInput = {
   physical: boolean;
   digital: boolean;
   edition_name: string | null;
+  cover_url: string | null;
 };
 
 const validRegions = new Set<Region>([
@@ -37,6 +38,15 @@ function textValue(formData: FormData, key: string) {
 function nullableText(formData: FormData, key: string) {
   const value = textValue(formData, key);
   return value.length > 0 ? value : null;
+}
+
+function isValidHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function parseReleaseYear(formData: FormData) {
@@ -77,6 +87,7 @@ function parseCatalogPlatforms(formData: FormData):
   const dateValues = formData.getAll("release_date").map(String);
   const formatValues = formData.getAll("release_format").map(String);
   const editionValues = formData.getAll("edition_name").map(String);
+  const coverValues = formData.getAll("version_cover_url").map(String);
 
   if (platformValues.length === 0) {
     return {
@@ -89,7 +100,8 @@ function parseCatalogPlatforms(formData: FormData):
     platformValues.length !== regionValues.length ||
     platformValues.length !== dateValues.length ||
     platformValues.length !== formatValues.length ||
-    platformValues.length !== editionValues.length
+    platformValues.length !== editionValues.length ||
+    platformValues.length !== coverValues.length
   ) {
     return {
       platforms: null,
@@ -106,6 +118,7 @@ function parseCatalogPlatforms(formData: FormData):
     const releaseDate = dateValues[index].trim();
     const format = formatValues[index] as ReleaseFormat;
     const editionName = editionValues[index].trim();
+    const coverUrl = coverValues[index].trim();
 
     if (!Number.isInteger(platformId) || platformId <= 0) {
       return {
@@ -135,6 +148,13 @@ function parseCatalogPlatforms(formData: FormData):
       };
     }
 
+    if (coverUrl && !isValidHttpUrl(coverUrl)) {
+      return {
+        platforms: null,
+        error: `L’URL de jaquette ${region} doit commencer par http:// ou https://.`,
+      };
+    }
+
     const uniqueKey = `${platformId}:${region}`;
 
     if (uniqueKeys.has(uniqueKey)) {
@@ -154,6 +174,7 @@ function parseCatalogPlatforms(formData: FormData):
       physical: format === "physical" || format === "both",
       digital: format === "digital" || format === "both",
       edition_name: editionName || null,
+      cover_url: coverUrl || null,
     });
   }
 
@@ -201,6 +222,7 @@ export async function createCatalogGame(formData: FormData) {
   const title = textValue(formData, "title");
   const releaseYear = parseReleaseYear(formData);
   const parsedPlatforms = parseCatalogPlatforms(formData);
+  const mainCoverUrl = nullableText(formData, "cover_url");
 
   if (!title) {
     redirect(errorUrl("/admin/games/new", "Le titre du jeu est obligatoire."));
@@ -211,6 +233,15 @@ export async function createCatalogGame(formData: FormData) {
       errorUrl(
         "/admin/games/new",
         "L’année de sortie doit être comprise entre 1970 et 2100.",
+      ),
+    );
+  }
+
+  if (mainCoverUrl && !isValidHttpUrl(mainCoverUrl)) {
+    redirect(
+      errorUrl(
+        "/admin/games/new",
+        "L’URL de la jaquette principale est invalide.",
       ),
     );
   }
@@ -249,7 +280,7 @@ export async function createCatalogGame(formData: FormData) {
       developer: nullableText(formData, "developer"),
       publisher: nullableText(formData, "publisher"),
       series: nullableText(formData, "series"),
-      cover_url: nullableText(formData, "cover_url"),
+      cover_url: mainCoverUrl,
       release_year: releaseYear,
     })
     .select("id, slug")
@@ -305,6 +336,7 @@ export async function updateCatalogGame(
   const title = textValue(formData, "title");
   const releaseYear = parseReleaseYear(formData);
   const parsedPlatforms = parseCatalogPlatforms(formData);
+  const mainCoverUrl = nullableText(formData, "cover_url");
 
   if (!title) {
     redirect(errorUrl(editPath, "Le titre du jeu est obligatoire."));
@@ -317,6 +349,10 @@ export async function updateCatalogGame(
         "L’année de sortie doit être comprise entre 1970 et 2100.",
       ),
     );
+  }
+
+  if (mainCoverUrl && !isValidHttpUrl(mainCoverUrl)) {
+    redirect(errorUrl(editPath, "L’URL de la jaquette principale est invalide."));
   }
 
   if (parsedPlatforms.error || !parsedPlatforms.platforms) {
@@ -356,7 +392,7 @@ export async function updateCatalogGame(
     await supabase
       .from("game_platforms")
       .select(
-        "game_id, platform_id, region, release_date, physical, digital, edition_name",
+        "game_id, platform_id, region, release_date, physical, digital, edition_name, cover_url",
       )
       .eq("game_id", gameId);
 
@@ -378,7 +414,7 @@ export async function updateCatalogGame(
       developer: nullableText(formData, "developer"),
       publisher: nullableText(formData, "publisher"),
       series: nullableText(formData, "series"),
-      cover_url: nullableText(formData, "cover_url"),
+      cover_url: mainCoverUrl,
       release_year: releaseYear,
     })
     .eq("id", gameId);
