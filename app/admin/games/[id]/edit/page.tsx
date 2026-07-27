@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import CatalogGameForm, {
+import CatalogGameUploadForm, {
   type CatalogGameValue,
   type CatalogPlatformValue,
-} from "@/components/admin/CatalogGameForm";
+} from "@/components/admin/CatalogGameUploadForm";
 import { updateCatalogGame } from "../../actions";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 
@@ -193,7 +193,7 @@ export default async function EditCatalogGamePage({
         </p>
       )}
 
-      <CatalogGameForm
+      <CatalogGameUploadForm
         action={action}
         platforms={platforms}
         submitLabel="Enregistrer les modifications"
