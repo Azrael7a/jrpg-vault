@@ -1,9 +1,10 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
-type Region = "PAL" | "US" | "JAP" | "ASIA" | "WORLD";
+export type Region = "PAL" | "US" | "JAP" | "ASIA" | "WORLD";
 
 type PlatformRelation = {
   id: number;
@@ -20,11 +21,34 @@ type RawGamePlatform = {
   platforms: PlatformRelation | PlatformRelation[] | null;
 };
 
+type RawCollectionEntry = {
+  id: number;
+  platform_id: number | null;
+  status: string | null;
+  format: string | null;
+  region: Region | null;
+  platforms: PlatformRelation | PlatformRelation[] | null;
+};
+
 type AvailableVersion = {
   platform: PlatformRelation;
   region: Region;
   physical: boolean;
   digital: boolean;
+};
+
+type CollectionEntry = {
+  id: number;
+  platform: PlatformRelation | null;
+  status: string | null;
+  format: string | null;
+  region: Region | null;
+};
+
+type Props = {
+  gameId: number;
+  preferredPlatformId?: number | null;
+  preferredRegion?: Region | null;
 };
 
 const statuses = [
@@ -56,16 +80,48 @@ function comparePlatforms(a: PlatformRelation, b: PlatformRelation) {
   );
 }
 
+function getInitialFormat(version: AvailableVersion) {
+  if (version.physical) {
+    return "physical";
+  }
+
+  if (version.digital) {
+    return "digital";
+  }
+
+  return "physical";
+}
+
+function getStatusLabel(value: string | null) {
+  return statuses.find((status) => status.value === value)?.label ?? "Collection";
+}
+
+function getFormatLabel(value: string | null) {
+  switch (value) {
+    case "physical":
+      return "Physique";
+    case "digital":
+      return "Numérique";
+    case "both":
+      return "Physique + numérique";
+    default:
+      return null;
+  }
+}
+
 export default function AddToCollectionButton({
   gameId,
-}: {
-  gameId: number;
-}) {
+  preferredPlatformId,
+  preferredRegion,
+}: Props) {
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
-
   const [availableVersions, setAvailableVersions] = useState<
     AvailableVersion[]
   >([]);
+  const [collectionEntries, setCollectionEntries] = useState<CollectionEntry[]>(
+    [],
+  );
   const [platformId, setPlatformId] = useState("");
   const [format, setFormat] = useState("physical");
   const [region, setRegion] = useState<Region | "">("");
@@ -73,6 +129,64 @@ export default function AddToCollectionButton({
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingPlatforms, setIsLoadingPlatforms] = useState(true);
+  const [isLoadingCollection, setIsLoadingCollection] = useState(true);
+  const [removingEntryId, setRemovingEntryId] = useState<number | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const refreshCollectionEntries = useCallback(
+    async (showLoading = false) => {
+      if (showLoading) {
+        setIsLoadingCollection(true);
+      }
+
+      const { data: userData } = await supabase.auth.getUser();
+
+      if (!userData.user) {
+        setCollectionEntries([]);
+        setIsLoadingCollection(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_collections")
+        .select(
+          `
+            id,
+            platform_id,
+            status,
+            format,
+            region,
+            platforms (
+              id,
+              name,
+              is_legacy,
+              display_order
+            )
+          `,
+        )
+        .eq("user_id", userData.user.id)
+        .eq("game_id", gameId)
+        .order("id", { ascending: true });
+
+      if (error) {
+        setMessage("Impossible de charger ta collection pour ce jeu.");
+        setIsLoadingCollection(false);
+        return;
+      }
+
+      const entries = ((data ?? []) as RawCollectionEntry[]).map((entry) => ({
+        id: entry.id,
+        platform: normalizeRelation(entry.platforms),
+        status: entry.status,
+        format: entry.format,
+        region: entry.region,
+      }));
+
+      setCollectionEntries(entries);
+      setIsLoadingCollection(false);
+    },
+    [gameId, supabase],
+  );
 
   useEffect(() => {
     async function loadPlatforms() {
@@ -97,7 +211,7 @@ export default function AddToCollectionButton({
         .eq("game_id", gameId);
 
       if (error) {
-        setMessage(`Erreur plateformes : ${error.message}`);
+        setMessage("Impossible de charger les versions disponibles.");
         setIsLoadingPlatforms(false);
         return;
       }
@@ -123,36 +237,53 @@ export default function AddToCollectionButton({
 
       setAvailableVersions(versions);
 
-      if (versions.length > 0) {
-        const sortedPlatforms = Array.from(
-          new Map(
-            versions.map((version) => [
-              version.platform.id,
-              version.platform,
-            ]),
-          ).values(),
-        ).sort(comparePlatforms);
+      const preferredVersion = versions.find(
+        (version) =>
+          version.platform.id === preferredPlatformId &&
+          version.region === preferredRegion,
+      );
 
-        const firstPlatform = sortedPlatforms[0];
-        const firstVersion = versions.find(
-          (version) => version.platform.id === firstPlatform.id,
-        );
+      const initialVersion =
+        preferredVersion ??
+        [...versions].sort((a, b) =>
+          comparePlatforms(a.platform, b.platform),
+        )[0];
 
-        setPlatformId(String(firstPlatform.id));
-        setRegion(firstVersion?.region ?? "WORLD");
-
-        if (firstVersion?.physical) {
-          setFormat("physical");
-        } else if (firstVersion?.digital) {
-          setFormat("digital");
-        }
+      if (initialVersion) {
+        setPlatformId(String(initialVersion.platform.id));
+        setRegion(initialVersion.region);
+        setFormat(getInitialFormat(initialVersion));
       }
 
       setIsLoadingPlatforms(false);
     }
 
-    loadPlatforms();
-  }, [gameId, supabase]);
+    void loadPlatforms();
+  }, [gameId, preferredPlatformId, preferredRegion, supabase]);
+
+  useEffect(() => {
+    void refreshCollectionEntries(true);
+  }, [refreshCollectionEntries]);
+
+  useEffect(() => {
+    if (!preferredPlatformId || !preferredRegion) {
+      return;
+    }
+
+    const version = availableVersions.find(
+      (item) =>
+        item.platform.id === preferredPlatformId &&
+        item.region === preferredRegion,
+    );
+
+    if (!version) {
+      return;
+    }
+
+    setPlatformId(String(version.platform.id));
+    setRegion(version.region);
+    setFormat(getInitialFormat(version));
+  }, [availableVersions, preferredPlatformId, preferredRegion]);
 
   const platforms = useMemo(
     () =>
@@ -238,18 +369,24 @@ export default function AddToCollectionButton({
 
     if (firstVersion) {
       setRegion(firstVersion.region);
-
-      if (firstVersion.physical) {
-        setFormat("physical");
-      } else if (firstVersion.digital) {
-        setFormat("digital");
-      }
+      setFormat(getInitialFormat(firstVersion));
     }
   }
 
-  async function addToCollection(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
+  function handleRegionChange(value: Region) {
+    setRegion(value);
+
+    const version = availableVersions.find(
+      (item) =>
+        item.platform.id === Number(platformId) && item.region === value,
+    );
+
+    if (version) {
+      setFormat(getInitialFormat(version));
+    }
+  }
+
+  async function addToCollection(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
     setIsLoading(true);
@@ -257,13 +394,12 @@ export default function AddToCollectionButton({
     const { data: userData } = await supabase.auth.getUser();
 
     if (!userData.user) {
-      setMessage("Connecte-toi pour ajouter ce jeu.");
-      setIsLoading(false);
+      window.location.href = "/auth/login";
       return;
     }
 
     if (!platformId || !region) {
-      setMessage("Aucun support n’est disponible pour ce jeu.");
+      setMessage("Aucune version ne peut être ajoutée pour ce jeu.");
       setIsLoading(false);
       return;
     }
@@ -278,54 +414,212 @@ export default function AddToCollectionButton({
     });
 
     if (error) {
-      if (error.code === "23505") {
-        setMessage(
-          "Ce jeu existe déjà dans ta collection avec cette plateforme, région et format.",
-        );
-      } else {
-        setMessage(`Erreur : ${error.message}`);
-      }
-
+      setMessage(
+        error.code === "23505"
+          ? "Cette version est déjà présente dans ta collection."
+          : "Impossible d’ajouter le jeu pour le moment.",
+      );
       setIsLoading(false);
       return;
     }
 
-    setMessage("Jeu ajouté à ta collection.");
+    await refreshCollectionEntries();
+    setMessage("Version ajoutée à ta collection.");
     setIsLoading(false);
+    setIsOpen(false);
+    router.refresh();
   }
 
-  if (isLoadingPlatforms) {
+  async function removeFromCollection(entry: CollectionEntry) {
+    const platformName = entry.platform?.name ?? "cette version";
+    const regionLabel = entry.region ? ` · ${entry.region}` : "";
+
+    if (
+      !window.confirm(
+        `Retirer ${platformName}${regionLabel} de ta collection ?`,
+      )
+    ) {
+      return;
+    }
+
+    setMessage("");
+    setRemovingEntryId(entry.id);
+
+    const { data: userData } = await supabase.auth.getUser();
+
+    if (!userData.user) {
+      window.location.href = "/auth/login";
+      return;
+    }
+
+    const { error } = await supabase
+      .from("user_collections")
+      .delete()
+      .eq("id", entry.id)
+      .eq("user_id", userData.user.id)
+      .eq("game_id", gameId);
+
+    if (error) {
+      setMessage("Impossible de retirer cette version pour le moment.");
+      setRemovingEntryId(null);
+      return;
+    }
+
+    setCollectionEntries((currentEntries) =>
+      currentEntries.filter((currentEntry) => currentEntry.id !== entry.id),
+    );
+    setMessage("Version retirée de ta collection.");
+    setRemovingEntryId(null);
+    router.refresh();
+  }
+
+  if (isLoadingPlatforms || isLoadingCollection) {
     return (
-      <div className="jrpg-card p-4 text-sm text-slate-400">
-        Chargement des supports…
+      <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-sm text-slate-400">
+        Préparation de ta collection…
       </div>
     );
   }
 
   if (platforms.length === 0) {
     return (
-      <div className="jrpg-card p-4">
-        <h2 className="text-xl font-semibold">Ajouter à ma collection</h2>
-        <p className="mt-3 text-sm text-amber-300">
-          Aucun support n’est encore associé à ce jeu.
-        </p>
+      <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-sm text-slate-400">
+        Aucune version n’est encore disponible pour la collection.
+      </div>
+    );
+  }
+
+  if (!isOpen && collectionEntries.length > 0) {
+    return (
+      <section className="rounded-xl border border-emerald-500/30 bg-emerald-950/15 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-emerald-200">
+              ✓ Dans ma collection
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              {collectionEntries.length === 1
+                ? "1 version enregistrée"
+                : `${collectionEntries.length} versions enregistrées`}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(true);
+              setMessage("");
+            }}
+            className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-purple-500 hover:text-purple-200"
+          >
+            + Ajouter une autre version
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-2">
+          {collectionEntries.map((entry) => {
+            const details = [
+              entry.region,
+              getFormatLabel(entry.format),
+              getStatusLabel(entry.status),
+            ].filter(Boolean);
+
+            return (
+              <div
+                key={entry.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold text-white">
+                    {entry.platform?.name ?? "Plateforme"}
+                  </p>
+                  {details.length > 0 && (
+                    <p className="mt-1 text-xs text-slate-400">
+                      {details.join(" · ")}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={removingEntryId === entry.id}
+                  onClick={() => void removeFromCollection(entry)}
+                  className="rounded-lg border border-red-500/35 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-200 transition hover:border-red-400 hover:bg-red-500/20 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {removingEntryId === entry.id ? "Suppression…" : "Retirer"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {message && (
+          <p aria-live="polite" className="mt-3 text-sm text-slate-300">
+            {message}
+          </p>
+        )}
+      </section>
+    );
+  }
+
+  if (!isOpen) {
+    return (
+      <div className="grid gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setIsOpen(true);
+            setMessage("");
+          }}
+          className="w-full rounded-xl bg-purple-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-purple-500"
+        >
+          + Ajouter à ma collection
+        </button>
+
+        {message && (
+          <p aria-live="polite" className="text-sm text-slate-300">
+            {message}
+          </p>
+        )}
       </div>
     );
   }
 
   return (
-    <form onSubmit={addToCollection} className="jrpg-card p-4">
-      <h2 className="text-xl font-semibold">Ajouter à ma collection</h2>
+    <form
+      onSubmit={addToCollection}
+      className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="font-bold text-white">
+            {collectionEntries.length > 0
+              ? "Ajouter une autre version"
+              : "Ajouter à ma collection"}
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Choisis la version que tu possèdes ou souhaites suivre.
+          </p>
+        </div>
 
-      <div className="mt-4 grid gap-4">
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-200">
+        <button
+          type="button"
+          onClick={() => setIsOpen(false)}
+          className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500"
+        >
+          Fermer
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <label className="grid gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Plateforme
           </span>
           <select
             value={platformId}
             onChange={(event) => handlePlatformChange(event.target.value)}
-            className="rounded border px-3 py-2"
+            className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"
           >
             {platforms.map((platform) => (
               <option key={platform.id} value={platform.id}>
@@ -335,27 +629,16 @@ export default function AddToCollectionButton({
           </select>
         </label>
 
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-200">Format</span>
-          <select
-            value={format}
-            onChange={(event) => setFormat(event.target.value)}
-            className="rounded border px-3 py-2"
-          >
-            {formats.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-200">Région</span>
+        <label className="grid gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Région
+          </span>
           <select
             value={region}
-            onChange={(event) => setRegion(event.target.value as Region)}
-            className="rounded border px-3 py-2"
+            onChange={(event) =>
+              handleRegionChange(event.target.value as Region)
+            }
+            className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"
           >
             {regions.map((item) => (
               <option key={item} value={item}>
@@ -365,12 +648,31 @@ export default function AddToCollectionButton({
           </select>
         </label>
 
-        <label className="grid gap-1">
-          <span className="text-sm font-medium text-slate-200">Statut</span>
+        <label className="grid gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Format
+          </span>
+          <select
+            value={format}
+            onChange={(event) => setFormat(event.target.value)}
+            className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"
+          >
+            {formats.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="grid gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Statut
+          </span>
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value)}
-            className="rounded border px-3 py-2"
+            className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white"
           >
             {statuses.map((item) => (
               <option key={item.value} value={item.value}>
@@ -381,15 +683,21 @@ export default function AddToCollectionButton({
         </label>
       </div>
 
-      <button
-        type="submit"
-        disabled={isLoading}
-        className="jrpg-button-primary mt-4 px-4 py-2 disabled:opacity-50"
-      >
-        {isLoading ? "Ajout..." : "Ajouter à ma collection"}
-      </button>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-purple-500 disabled:opacity-50"
+        >
+          {isLoading ? "Ajout en cours…" : "Confirmer l’ajout"}
+        </button>
 
-      {message && <p className="mt-3 text-sm text-slate-300">{message}</p>}
+        {message && (
+          <p aria-live="polite" className="text-sm text-slate-300">
+            {message}
+          </p>
+        )}
+      </div>
     </form>
   );
 }

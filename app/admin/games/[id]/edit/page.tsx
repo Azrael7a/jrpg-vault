@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import CatalogGameForm, {
+import CatalogGameUploadForm, {
   type CatalogGameValue,
   type CatalogPlatformValue,
-} from "@/components/admin/CatalogGameForm";
+} from "@/components/admin/CatalogGameUploadForm";
+import GameJrpgMetadataForm, {
+  type GameJrpgMetadataValue,
+} from "@/components/admin/GameJrpgMetadataForm";
 import { updateCatalogGame } from "../../actions";
+import { updateGameJrpgMetadata } from "../../jrpg-actions";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 
 type Platform = {
@@ -26,6 +30,7 @@ type GamePlatformRelation = {
   physical: boolean | null;
   digital: boolean | null;
   edition_name: string | null;
+  cover_url: string | null;
   platforms: PlatformRelation | PlatformRelation[] | null;
 };
 
@@ -39,6 +44,17 @@ type RawGame = {
   series: string | null;
   cover_url: string | null;
   release_year: number | null;
+  original_title: string | null;
+  country_of_origin: string | null;
+  game_mode: string | null;
+  battle_system: string | null;
+  party_structure: string | null;
+  progression_system: string | null;
+  narrative_structure: string | null;
+  exploration_style: string | null;
+  difficulty: string | null;
+  main_story_hours: number | null;
+  available_languages: string | null;
   game_platforms: GamePlatformRelation[] | null;
 };
 
@@ -100,6 +116,17 @@ export default async function EditCatalogGamePage({
             series,
             cover_url,
             release_year,
+            original_title,
+            country_of_origin,
+            game_mode,
+            battle_system,
+            party_structure,
+            progression_system,
+            narrative_structure,
+            exploration_style,
+            difficulty,
+            main_story_hours,
+            available_languages,
             game_platforms (
               id,
               region,
@@ -107,6 +134,7 @@ export default async function EditCatalogGamePage({
               physical,
               digital,
               edition_name,
+              cover_url,
               platforms (
                 id,
                 name
@@ -136,6 +164,22 @@ export default async function EditCatalogGamePage({
     release_year: game.release_year ? String(game.release_year) : "",
   };
 
+  const initialJrpgMetadata: GameJrpgMetadataValue = {
+    original_title: game.original_title ?? "",
+    country_of_origin: game.country_of_origin ?? "",
+    game_mode: game.game_mode ?? "",
+    battle_system: game.battle_system ?? "",
+    party_structure: game.party_structure ?? "",
+    progression_system: game.progression_system ?? "",
+    narrative_structure: game.narrative_structure ?? "",
+    exploration_style: game.exploration_style ?? "",
+    difficulty: game.difficulty ?? "",
+    main_story_hours: game.main_story_hours
+      ? String(game.main_story_hours)
+      : "",
+    available_languages: game.available_languages ?? "",
+  };
+
   const initialPlatforms: CatalogPlatformValue[] =
     game.game_platforms
       ?.map((gamePlatform) => {
@@ -152,6 +196,7 @@ export default async function EditCatalogGamePage({
           release_date: gamePlatform.release_date ?? "",
           release_format: getFormat(gamePlatform),
           edition_name: gamePlatform.edition_name ?? "",
+          cover_url: gamePlatform.cover_url ?? "",
         };
       })
       .filter(
@@ -159,9 +204,15 @@ export default async function EditCatalogGamePage({
           gamePlatform !== null,
       ) ?? [];
 
-  const action = updateCatalogGame.bind(null, gameId);
+  const catalogAction = updateCatalogGame.bind(null, gameId);
+  const jrpgAction = updateGameJrpgMetadata.bind(null, gameId);
   const errorMessage =
     typeof queryParams.error === "string" ? queryParams.error : null;
+  const jrpgError =
+    typeof queryParams.jrpg_error === "string"
+      ? queryParams.jrpg_error
+      : null;
+  const jrpgUpdated = queryParams.jrpg_updated === "1";
 
   return (
     <main className="mx-auto w-full max-w-6xl p-8">
@@ -173,7 +224,8 @@ export default async function EditCatalogGamePage({
         <p className="jrpg-badge">Administration</p>
         <h1 className="mt-4 text-4xl font-bold">Modifier {game.title}</h1>
         <p className="mt-3 text-slate-400">
-          Modifie la fiche et les versions proposées dans la collection.
+          Modifie les informations générales, les versions, les jaquettes et le
+          profil JRPG affiché sur la fiche publique.
         </p>
       </div>
 
@@ -189,12 +241,29 @@ export default async function EditCatalogGamePage({
         </p>
       )}
 
-      <CatalogGameForm
-        action={action}
+      <CatalogGameUploadForm
+        action={catalogAction}
         platforms={platforms}
         submitLabel="Enregistrer les modifications"
         initialGame={initialGame}
         initialPlatforms={initialPlatforms}
+      />
+
+      {jrpgError && (
+        <p className="mt-8 rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-red-200">
+          {jrpgError}
+        </p>
+      )}
+
+      {jrpgUpdated && (
+        <p className="mt-8 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-emerald-200">
+          Les informations JRPG ont été enregistrées.
+        </p>
+      )}
+
+      <GameJrpgMetadataForm
+        action={jrpgAction}
+        initialValue={initialJrpgMetadata}
       />
     </main>
   );
